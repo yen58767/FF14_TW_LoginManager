@@ -30,6 +30,12 @@ Final Fantasy XIV 登入管理器 - 自動化 OTP 輸入與多帳號管理工具
 4. 在本程式的「OTP 取得教學」中點擊「點此取得 Secret Key」
 5. 上傳 QR Code 圖片即可提取
 
+## 截圖
+
+![主介面](screenshots/Demo1.png)
+
+![設定畫面](screenshots/Demo2.png)
+
 ## 自行建置
 
 ### 環境需求
