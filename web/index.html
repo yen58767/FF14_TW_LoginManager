@@ -92,12 +92,6 @@
                     啟動遊戲
                 </button>
 
-                <!-- 狀態列 -->
-                <div class="card-bg rounded-xl p-3 shadow-lg">
-                    <div class="text-xs text-gray-400 mb-1">狀態</div>
-                    <div id="statusText" class="text-sm text-gray-300 truncate">就緒</div>
-                </div>
-
                 <!-- 資訊按鈕 -->
                 <button
                     id="infoBtn"
@@ -113,6 +107,22 @@
                 >
                     OTP 取得教學
                 </button>
+
+                <!-- 狀態列 -->
+                <div class="card-bg rounded-xl p-3 shadow-lg">
+                    <div class="text-xs text-gray-400 mb-1">狀態</div>
+                    <div id="statusText" class="text-sm text-gray-300 truncate">就緒</div>
+                    <div class="flex gap-2 mt-2 text-xs">
+                        <div class="flex items-center gap-1">
+                            <span id="launcherIndicator" class="w-2 h-2 rounded-full bg-gray-500"></span>
+                            <span class="text-gray-400">登入器</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span id="gameIndicator" class="w-2 h-2 rounded-full bg-gray-500"></span>
+                            <span class="text-gray-400">遊戲</span>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- 版本號 -->
                 <div id="versionText" class="text-center text-xs text-gray-500 mt-2"></div>
@@ -296,6 +306,21 @@
             <div class="flex gap-2">
                 <a id="downloadLink" href="#" target="_blank" class="flex-1 btn-primary rounded-lg px-4 py-2 text-sm font-bold text-center">前往下載</a>
                 <button id="updateLaterBtn" class="flex-1 input-bg border border-white/10 rounded-lg px-4 py-2 text-sm">稍後再說</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- 遊戲執行中確認 Dialog -->
+    <dialog id="gameRunningDialog" class="dialog-base rounded-xl p-0 max-w-sm w-full">
+        <div class="card-bg p-4 rounded-xl">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-yellow-400">提示</h3>
+                <button id="gameRunningDialogClose" class="text-gray-400 hover:text-white text-xl">&times;</button>
+            </div>
+            <div class="text-sm text-gray-300 mb-4">已偵測到遊戲正在執行中，是否仍要啟動登入器？</div>
+            <div class="flex gap-2">
+                <button id="gameRunningConfirmBtn" class="flex-1 btn-primary rounded-lg px-4 py-2 text-sm font-bold">繼續啟動</button>
+                <button id="gameRunningCancelBtn" class="flex-1 input-bg border border-white/10 rounded-lg px-4 py-2 text-sm">取消</button>
             </div>
         </div>
     </dialog>

@@ -63,9 +63,15 @@ const deleteConfirmDialogClose = document.getElementById('deleteConfirmDialogClo
 const deleteConfirmBtn = document.getElementById('deleteConfirmBtn');
 const deleteCancelBtn = document.getElementById('deleteCancelBtn');
 
+const gameRunningDialog = document.getElementById('gameRunningDialog');
+const gameRunningDialogClose = document.getElementById('gameRunningDialogClose');
+const gameRunningConfirmBtn = document.getElementById('gameRunningConfirmBtn');
+const gameRunningCancelBtn = document.getElementById('gameRunningCancelBtn');
+
 // State
 let isRunning = false;
 let otpUpdateInterval = null;
+let detectInterval = null;
 let accounts = [];
 let selectedAccountIndex = -1;
 let currentTheme = 'tsuyukusa';
@@ -76,11 +82,50 @@ let extractedSecretKey = '';
 document.addEventListener('DOMContentLoaded', async () => {
     await loadConfig();
     startOtpUpdate();
+    startDetection();
     initTheme();
     initDialogs();
     initQrScanner();
     checkForUpdates();
 });
+
+// ========== 偵測 Launcher 和遊戲狀態 ==========
+
+function startDetection() {
+    updateDetectionStatus();
+    detectInterval = setInterval(updateDetectionStatus, 3000);
+}
+
+async function updateDetectionStatus() {
+    try {
+        if (!window.pywebview || !window.pywebview.api) return;
+
+        const launcherIndicator = document.getElementById('launcherIndicator');
+        const gameIndicator = document.getElementById('gameIndicator');
+
+        // 偵測 Launcher
+        const launcherResult = await window.pywebview.api.detect_launcher();
+        if (launcherResult.running) {
+            launcherIndicator.classList.remove('bg-gray-500');
+            launcherIndicator.classList.add('bg-green-500');
+        } else {
+            launcherIndicator.classList.remove('bg-green-500');
+            launcherIndicator.classList.add('bg-gray-500');
+        }
+
+        // 偵測遊戲
+        const gameResult = await window.pywebview.api.detect_game();
+        if (gameResult.running) {
+            gameIndicator.classList.remove('bg-gray-500');
+            gameIndicator.classList.add('bg-green-500');
+        } else {
+            gameIndicator.classList.remove('bg-green-500');
+            gameIndicator.classList.add('bg-gray-500');
+        }
+    } catch (error) {
+        console.error('偵測狀態失敗:', error);
+    }
+}
 
 // ========== 更新檢查 ==========
 
@@ -241,6 +286,17 @@ function initDialogs() {
             saveConfig();
         }
         deleteConfirmDialog.close();
+    });
+
+    // Game Running Dialog
+    gameRunningDialogClose.addEventListener('click', () => gameRunningDialog.close());
+    gameRunningCancelBtn.addEventListener('click', () => gameRunningDialog.close());
+    gameRunningDialog.addEventListener('click', (e) => {
+        if (e.target === gameRunningDialog) gameRunningDialog.close();
+    });
+    gameRunningConfirmBtn.addEventListener('click', () => {
+        gameRunningDialog.close();
+        doStartAutomation();
     });
 
     // QR Dialog
@@ -803,7 +859,22 @@ startBtn.addEventListener('click', async () => {
         return;
     }
 
+    // 檢查遊戲是否正在執行
+    try {
+        const gameResult = await window.pywebview.api.detect_game();
+        if (gameResult.running) {
+            gameRunningDialog.showModal();
+            return;
+        }
+    } catch (error) {
+        console.error('Failed to detect game:', error);
+    }
+
     // 啟動
+    doStartAutomation();
+});
+
+async function doStartAutomation() {
     try {
         setRunningState(true);
         const email = accountEmailInput.value || '';
@@ -819,7 +890,7 @@ startBtn.addEventListener('click', async () => {
         updateStatus('啟動自動化失敗');
         setRunningState(false);
     }
-});
+}
 
 // ========== 狀態管理 ==========
 

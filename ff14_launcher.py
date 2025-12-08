@@ -3,7 +3,7 @@ FF14 Login Manager
 使用 pywebview 介面，搭配 UI Automation API 操作 FF14 Launcher
 """
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 VERSION_CHECK_URL = "https://raw.githubusercontent.com/yen58767/FF14_TW_LoginManager/main/version.json"
 
 import sys
@@ -525,6 +525,59 @@ class Api:
     def get_version(self):
         """取得當前版本"""
         return VERSION
+
+    def detect_launcher(self):
+        """偵測 Launcher 是否已啟動"""
+        try:
+            root = uia.GetRootElement()
+            launcher = automation.find_window_by_keywords(root, ["FINAL FANTASY XIV 繁體中文版"])
+            return {"running": launcher is not None}
+        except Exception:
+            return {"running": False}
+
+    def detect_game(self):
+        """偵測遊戲是否已開啟（透過進程名稱）"""
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            # 使用 Windows API 列舉進程
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+            # 取得所有進程 ID
+            EnumProcesses = ctypes.windll.psapi.EnumProcesses
+            GetProcessImageFileNameW = ctypes.windll.psapi.GetProcessImageFileNameW
+            OpenProcess = ctypes.windll.kernel32.OpenProcess
+            CloseHandle = ctypes.windll.kernel32.CloseHandle
+
+            # 列舉進程
+            process_ids = (ctypes.c_ulong * 2048)()
+            bytes_returned = ctypes.c_ulong()
+            EnumProcesses(process_ids, ctypes.sizeof(process_ids), ctypes.byref(bytes_returned))
+
+            num_processes = bytes_returned.value // ctypes.sizeof(ctypes.c_ulong)
+
+            game_executables = ["ffxiv_dx11.exe", "ffxiv.exe"]
+
+            for i in range(num_processes):
+                pid = process_ids[i]
+                if pid == 0:
+                    continue
+
+                handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+                if handle:
+                    try:
+                        image_name = ctypes.create_unicode_buffer(512)
+                        if GetProcessImageFileNameW(handle, image_name, 512):
+                            exe_name = image_name.value.split("\\")[-1].lower()
+                            if exe_name in game_executables:
+                                return {"running": True}
+                    finally:
+                        CloseHandle(handle)
+
+            return {"running": False}
+        except Exception:
+            return {"running": False}
 
 
 def save_window_position():
