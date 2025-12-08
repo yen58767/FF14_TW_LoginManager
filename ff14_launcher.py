@@ -3,7 +3,7 @@ FF14 Login Manager
 使用 pywebview 介面，搭配 UI Automation API 操作 FF14 Launcher
 """
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 VERSION_CHECK_URL = "https://raw.githubusercontent.com/yen58767/FF14_TW_LoginManager/main/version.json"
 
 import sys
@@ -50,6 +50,7 @@ class ConfigManager:
             "selected_account": -1,
             "theme": "tsuyukusa",
             "brightness": 50,
+            "auto_check_update": True,
             "auto_launch": True,
             "auto_input_credentials": False,
             "auto_input_otp": True,

@@ -15,6 +15,7 @@ const progressBar = document.getElementById('progressBar');
 const timeRemaining = document.getElementById('timeRemaining');
 const copyBtn = document.getElementById('copyBtn');
 const saveAccountBtn = document.getElementById('saveAccountBtn');
+const autoCheckUpdate = document.getElementById('autoCheckUpdate');
 const autoLaunch = document.getElementById('autoLaunch');
 const autoInputCredentials = document.getElementById('autoInputCredentials');
 const credentialsInfoBtn = document.getElementById('credentialsInfoBtn');
@@ -90,9 +91,22 @@ async function checkForUpdates() {
             await new Promise(resolve => setTimeout(resolve, 100));
         }
 
+        // 顯示版本號
+        const version = await window.pywebview.api.get_version();
+        document.getElementById('versionText').textContent = 'v' + version;
+
+        // 檢查是否啟用自動檢查更新
+        if (!autoCheckUpdate.checked) {
+            return;
+        }
+
         const result = await window.pywebview.api.check_update();
 
         if (result.has_update) {
+            // 顯示「有可用的更新」連結
+            document.getElementById('updateAvailable').classList.remove('hidden');
+
+            // 顯示更新對話框
             document.getElementById('currentVersion').textContent = result.current_version;
             document.getElementById('newVersion').textContent = result.new_version;
             document.getElementById('downloadLink').href = result.download_url;
@@ -511,6 +525,7 @@ async function loadConfig() {
         currentTheme = config.theme || 'tsuyukusa';
         brightness = config.brightness ?? 50;
 
+        autoCheckUpdate.checked = config.auto_check_update !== false;
         autoLaunch.checked = config.auto_launch !== false;
         autoInputCredentials.checked = config.auto_input_credentials === true;
         autoInputOtp.checked = config.auto_input_otp !== false;
@@ -532,6 +547,7 @@ async function saveConfig() {
             selected_account: selectedAccountIndex,
             theme: currentTheme,
             brightness: brightness,
+            auto_check_update: autoCheckUpdate.checked,
             auto_launch: autoLaunch.checked,
             auto_input_credentials: autoInputCredentials.checked,
             auto_input_otp: autoInputOtp.checked,
@@ -727,6 +743,7 @@ toggleKeyBtn.addEventListener('click', () => {
 });
 
 // 自動化選項變更
+autoCheckUpdate.addEventListener('change', saveConfig);
 autoLaunch.addEventListener('change', saveConfig);
 autoInputCredentials.addEventListener('change', saveConfig);
 autoInputOtp.addEventListener('change', saveConfig);

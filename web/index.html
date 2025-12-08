@@ -113,6 +113,10 @@
                 >
                     OTP 取得教學
                 </button>
+
+                <!-- 版本號 -->
+                <div id="versionText" class="text-center text-xs text-gray-500 mt-2"></div>
+                <a id="updateAvailable" href="https://github.com/yen58767/FF14_TW_LoginManager/releases" target="_blank" class="hidden text-center text-xs text-yellow-400 hover:text-yellow-300 underline block">有可用的更新</a>
             </div>
         </div>
     </div>
@@ -121,7 +125,13 @@
     <dialog id="settingsDialog" class="dialog-base rounded-xl p-0 max-w-md w-full">
         <div class="card-bg p-4 rounded-xl">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-bold title-text">設定</h3>
+                <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-bold title-text">設定</h3>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                        <input type="checkbox" id="autoCheckUpdate" class="checkbox-custom" checked>
+                        <span class="text-xs text-gray-400">啟動時檢查更新</span>
+                    </label>
+                </div>
                 <button id="settingsDialogClose" class="text-gray-400 hover:text-white text-xl">&times;</button>
             </div>
 
@@ -209,7 +219,6 @@
                 <button id="qrDialogClose" class="text-gray-400 hover:text-white text-xl">&times;</button>
             </div>
             <div id="qrUploadArea" class="border-2 border-dashed border-white/30 rounded-lg p-6 text-center cursor-pointer hover:border-white/50 transition-colors mb-4">
-                <div class="text-2xl mb-2">📤</div>
                 <div class="text-sm text-gray-300 mb-1">點擊或拖曳圖片到這裡</div>
                 <div class="text-xs text-gray-500">支援 JPG, PNG, GIF 格式</div>
                 <input type="file" id="qrFileInput" accept="image/*" class="hidden">
