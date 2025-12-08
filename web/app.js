@@ -129,7 +129,7 @@ async function updateDetectionStatus() {
 
 // ========== 更新檢查 ==========
 
-async function checkForUpdates() {
+async function checkForUpdates(showNoUpdateMsg = false) {
     try {
         // 等待 API 就緒
         while (!window.pywebview || !window.pywebview.api) {
@@ -140,8 +140,8 @@ async function checkForUpdates() {
         const version = await window.pywebview.api.get_version();
         document.getElementById('versionText').textContent = 'v' + version;
 
-        // 檢查是否啟用自動檢查更新
-        if (!autoCheckUpdate.checked) {
+        // 如果不是手動檢查，且沒有啟用自動檢查更新，則跳過
+        if (!showNoUpdateMsg && !autoCheckUpdate.checked) {
             return;
         }
 
@@ -156,11 +156,22 @@ async function checkForUpdates() {
             document.getElementById('newVersion').textContent = result.new_version;
             document.getElementById('downloadLink').href = result.download_url;
             document.getElementById('updateDialog').showModal();
+        } else if (showNoUpdateMsg) {
+            // 手動檢查時，如果沒有更新，顯示提示
+            updateStatus('目前已是最新版本');
         }
     } catch (error) {
         console.error('檢查更新失敗:', error);
+        if (showNoUpdateMsg) {
+            updateStatus('檢查更新失敗');
+        }
     }
 }
+
+// 點擊版本號手動檢查更新
+document.getElementById('versionText').addEventListener('click', () => {
+    checkForUpdates(true);
+});
 
 // ========== 主題切換 ==========
 
