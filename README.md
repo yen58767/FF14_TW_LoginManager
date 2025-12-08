@@ -13,7 +13,7 @@ Final Fantasy XIV 登入管理器 - 自動化 OTP 輸入與多帳號管理工具
 
 ## 下載
 
-前往 [Releases](https://github.com/yen58767/FF14_LoginManager/releases) 下載最新版本
+前往 [Releases](https://github.com/yen58767/FF14_TW_LoginManager/releases) 下載最新版本
 
 ## 使用方式
 
