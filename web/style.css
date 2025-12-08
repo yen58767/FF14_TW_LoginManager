@@ -1,0 +1,469 @@
+/* ========== 日本傳統色主題系統 ========== */
+
+:root {
+    --brightness-adjust: 0.5;
+}
+
+/* 露草 (Tsuyukusa) - 藍色系 - 預設主題 */
+:root,
+[data-theme="tsuyukusa"] {
+    --primary: #2EA9DF;
+    --primary-dark: #1E7EAB;
+    --bg-body-h: 210;
+    --bg-body-s: 50%;
+    --bg-card-h: 210;
+    --bg-card-s: 35%;
+    --bg-input-h: 210;
+    --bg-input-s: 30%;
+    --text-primary: #E0E6ED;
+    --text-secondary: #8899A6;
+    --success: #7EBEA5;
+    --danger: #E85B5B;
+}
+
+/* 朱 (Shu) - 紅橙色系 */
+[data-theme="shu"] {
+    --primary: #F75C2F;
+    --primary-dark: #C44A25;
+    --bg-body-h: 15;
+    --bg-body-s: 45%;
+    --bg-card-h: 15;
+    --bg-card-s: 40%;
+    --bg-input-h: 15;
+    --bg-input-s: 35%;
+    --text-primary: #F5E6E0;
+    --text-secondary: #A08070;
+    --success: #A8D8B9;
+    --danger: #E85B5B;
+}
+
+/* 苔 (Koke) - 橄欖綠色系 */
+[data-theme="koke"] {
+    --primary: #4B4E2A;
+    --primary-dark: #3A3D20;
+    --bg-body-h: 70;
+    --bg-body-s: 25%;
+    --bg-card-h: 70;
+    --bg-card-s: 20%;
+    --bg-input-h: 70;
+    --bg-input-s: 22%;
+    --text-primary: #E5E8D8;
+    --text-secondary: #8A8D70;
+    --success: #A8D8B9;
+    --danger: #D4735A;
+}
+
+/* 若竹 (Wakatake) - 清新綠色系 */
+[data-theme="wakatake"] {
+    --primary: #A8D8B9;
+    --primary-dark: #7BBF95;
+    --bg-body-h: 145;
+    --bg-body-s: 35%;
+    --bg-card-h: 145;
+    --bg-card-s: 30%;
+    --bg-input-h: 145;
+    --bg-input-s: 28%;
+    --text-primary: #E0F0E8;
+    --text-secondary: #70A088;
+    --success: #A8D8B9;
+    --danger: #E07070;
+}
+
+/* 藤 (Fuji) - 紫藤色系 */
+[data-theme="fuji"] {
+    --primary: #8B81C3;
+    --primary-dark: #6A5FA0;
+    --bg-body-h: 250;
+    --bg-body-s: 35%;
+    --bg-card-h: 250;
+    --bg-card-s: 30%;
+    --bg-input-h: 250;
+    --bg-input-s: 28%;
+    --text-primary: #E8E6F0;
+    --text-secondary: #9088A0;
+    --success: #A8D8B9;
+    --danger: #E07070;
+}
+
+/* 桜 (Sakura) - 櫻花粉色系 */
+[data-theme="sakura"] {
+    --primary: #FEDFE1;
+    --primary-dark: #F5B2B8;
+    --bg-body-h: 355;
+    --bg-body-s: 50%;
+    --bg-card-h: 355;
+    --bg-card-s: 45%;
+    --bg-input-h: 355;
+    --bg-input-s: 40%;
+    --text-primary: #F5E8E8;
+    --text-secondary: #A08888;
+    --success: #A8D8B9;
+    --danger: #E07070;
+}
+
+/* 群青 (Gunjou) - 深藍色系 */
+[data-theme="gunjou"] {
+    --primary: #465DAA;
+    --primary-dark: #354788;
+    --bg-body-h: 225;
+    --bg-body-s: 45%;
+    --bg-card-h: 225;
+    --bg-card-s: 40%;
+    --bg-input-h: 225;
+    --bg-input-s: 35%;
+    --text-primary: #E0E4F0;
+    --text-secondary: #8090A8;
+    --success: #A8D8B9;
+    --danger: #E07070;
+}
+
+/* 鬱金 (Ukon) - 金黃色系 */
+[data-theme="ukon"] {
+    --primary: #EFBB24;
+    --primary-dark: #D4A520;
+    --bg-body-h: 45;
+    --bg-body-s: 45%;
+    --bg-card-h: 45;
+    --bg-card-s: 40%;
+    --bg-input-h: 45;
+    --bg-input-s: 35%;
+    --text-primary: #F0EBE0;
+    --text-secondary: #A09878;
+    --success: #A8D8B9;
+    --danger: #E07070;
+}
+
+/* ========== 基礎樣式 ========== */
+
+body {
+    /* 明度範圍: 3% (最暗) ~ 95% (最亮) */
+    --body-l: calc(3% + (var(--brightness-adjust) * 92%));
+    --card-l: calc(6% + (var(--brightness-adjust) * 89%));
+    --input-l: calc(10% + (var(--brightness-adjust) * 85%));
+
+    background-color: hsl(var(--bg-body-h), var(--bg-body-s), var(--body-l));
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 亮色模式 (brightness > 85) */
+body.light-mode {
+    --text-primary: #1a1a2e;
+    --text-secondary: #4a4a5a;
+}
+
+body.light-mode .text-gray-400 {
+    color: #5a5a6a !important;
+}
+
+body.light-mode .text-gray-500 {
+    color: #6a6a7a !important;
+}
+
+body.light-mode .text-gray-300 {
+    color: #3a3a4a !important;
+}
+
+.title-text {
+    color: var(--primary);
+}
+
+.card-bg {
+    background-color: hsl(var(--bg-card-h), var(--bg-card-s), var(--card-l));
+    transition: background-color 0.3s ease;
+}
+
+.input-bg {
+    background-color: hsl(var(--bg-input-h), var(--bg-input-s), var(--input-l));
+    color: var(--text-primary);
+    transition: background-color 0.3s ease;
+}
+
+/* ========== 按鈕樣式 ========== */
+
+.btn-primary {
+    background-color: var(--primary);
+    color: var(--bg-body);
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-dark);
+}
+
+.btn-success {
+    background-color: var(--success);
+    color: var(--bg-body);
+}
+
+.btn-success:hover {
+    opacity: 0.8;
+}
+
+.btn-danger {
+    background-color: var(--danger);
+    color: white;
+}
+
+.btn-danger:hover {
+    opacity: 0.8;
+}
+
+/* ========== 進度條 ========== */
+
+.progress-bar {
+    background-color: var(--success);
+    transition: width 1s linear, background-color 0.3s ease;
+}
+
+.progress-bar.danger {
+    background-color: var(--danger);
+}
+
+/* ========== Checkbox 樣式 ========== */
+
+.checkbox-custom {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--text-secondary);
+    border-radius: 4px;
+    background-color: var(--bg-input);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.checkbox-custom:checked {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
+.checkbox-custom:checked::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--bg-body);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.checkbox-custom:hover {
+    border-color: var(--primary);
+}
+
+/* ========== 主題切換按鈕 ========== */
+
+#themeToggleBtn {
+    background-color: var(--primary);
+}
+
+.theme-option {
+    border: 2px solid transparent;
+}
+
+.theme-option:hover {
+    border-color: white;
+}
+
+.theme-option.active {
+    border-color: white;
+    box-shadow: 0 0 0 2px var(--bg-body);
+}
+
+/* ========== 滾動條 ========== */
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: hsl(var(--bg-card-h), var(--bg-card-s), var(--card-l));
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--text-secondary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
+
+/* ========== 輸入框 ========== */
+
+input::placeholder,
+select::placeholder {
+    color: var(--text-secondary);
+}
+
+input:focus,
+select:focus {
+    border-color: var(--primary) !important;
+}
+
+select option {
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+}
+
+/* ========== 狀態動畫 ========== */
+
+.status-loading {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* ========== OTP 顯示 ========== */
+
+#otpDisplay {
+    letter-spacing: 0.3em;
+    text-shadow: 0 0 20px color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+/* ========== 卡片效果 ========== */
+
+section {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease;
+}
+
+section:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* ========== 啟動按鈕 ========== */
+
+#startBtn:disabled {
+    background: var(--text-secondary);
+}
+
+#startBtn.stopping {
+    background-color: var(--danger);
+}
+
+/* ========== 明暗滑桿 ========== */
+
+.brightness-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right, #111 0%, #444 50%, #888 100%);
+    outline: none;
+    cursor: pointer;
+}
+
+.brightness-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.brightness-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* ========== 可摺疊區塊 ========== */
+
+.collapse-header {
+    cursor: pointer;
+    user-select: none;
+}
+
+.collapse-icon {
+    transition: transform 0.3s ease;
+    font-size: 0.75rem;
+}
+
+.collapse-header.collapsed .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+.collapse-content {
+    max-height: 500px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+}
+
+.collapse-content.collapsed {
+    max-height: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    opacity: 0;
+}
+
+/* ========== 狀態列 ========== */
+
+#statusText {
+    transition: color 0.3s ease;
+}
+
+/* ========== Dialog 樣式 ========== */
+
+.dialog-base {
+    background: transparent;
+    border: none;
+    max-width: 90vw;
+}
+
+.dialog-base::backdrop {
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.dialog-base[open] {
+    animation: dialogFadeIn 0.2s ease-out;
+}
+
+@keyframes dialogFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ========== Tab 樣式 ========== */
+
+.tab-btn {
+    background-color: transparent;
+    color: var(--text-secondary);
+}
+
+.tab-btn:hover {
+    background-color: hsl(var(--bg-card-h), var(--bg-card-s), var(--card-l));
+}
+
+.tab-btn.active {
+    background-color: hsl(var(--bg-card-h), var(--bg-card-s), var(--card-l));
+    color: var(--text-primary);
+}
