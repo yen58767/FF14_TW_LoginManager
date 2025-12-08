@@ -9,7 +9,6 @@ Final Fantasy XIV 登入管理器 - 自動化 OTP 輸入與多帳號管理工具
 - **自動化登入** - 自動啟動 Launcher、輸入 OTP、點擊 PLAY
 - **QR Code 掃描** - 從 Google Authenticator 匯出的 QR Code 提取 Secret Key
 - **主題切換** - 8 種顏色切換 + 明暗度調整
-- **視窗位置記憶** - 記住上次關閉時的視窗位置
 
 ## 下載
 
@@ -66,7 +65,7 @@ pyinstaller --onefile --windowed --name "FF14_Login_Manager" --add-data "web;web
 
 打包完成後，執行檔位於 `dist/FF14_Login_Manager.exe`
 
-#### 使用 Nuitka
+#### 使用 Nuitka(目前Releases打包方式)
 
 需先安裝 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)，並勾選「使用 C++ 的桌面開發」工作負載。
 
