@@ -4,7 +4,7 @@ FF14 Login Manager
 """
 
 VERSION = "1.0.0"
-VERSION_CHECK_URL = "https://raw.githubusercontent.com/yen58767/FF14_LoginManager/main/version.json"
+VERSION_CHECK_URL = "https://raw.githubusercontent.com/yen58767/FF14_TW_LoginManager/main/version.json"
 
 import sys
 import os
