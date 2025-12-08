@@ -57,12 +57,25 @@ python ff14_launcher.py
 
 ### 打包成 EXE
 
+#### 使用 PyInstaller
+
 ```bash
 pip install pyinstaller
 pyinstaller --onefile --windowed --name "FF14_Login_Manager" --add-data "web;web" --icon "web/favicon.ico" ff14_launcher.py
 ```
 
 打包完成後，執行檔位於 `dist/FF14_Login_Manager.exe`
+
+#### 使用 Nuitka
+
+需先安裝 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)，並勾選「使用 C++ 的桌面開發」工作負載。
+
+```bash
+pip install nuitka
+python -m nuitka --onefile --windows-disable-console --windows-icon-from-ico=web/favicon.ico --include-data-dir=web=web --include-module=comtypes.stream --msvc=latest ff14_launcher.py
+```
+
+打包完成後，執行檔位於 `ff14_launcher.exe`
 
 ## 注意事項
 
