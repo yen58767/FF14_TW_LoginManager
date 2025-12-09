@@ -14,9 +14,11 @@ import subprocess
 import threading
 import urllib.request
 from pathlib import Path
+import base64
 
 # 設定 Windows AppUserModelID，讓程式可以正確釘選到工作列
 import ctypes
+from ctypes import wintypes
 try:
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FF14LoginManager.App")
 except Exception:
@@ -35,6 +37,122 @@ uia = comtypes.client.CreateObject(
     "{ff48dba4-60ef-4201-aa87-54103eef594e}",
     interface=UIAutomationClient.IUIAutomation
 )
+
+
+# ============ DPAPI 加密/解密功能 ============
+
+class DPAPIEncryption:
+    """使用 Windows DPAPI 加密/解密敏感資料"""
+
+    @staticmethod
+    def encrypt(plaintext: str) -> str:
+        """
+        使用 DPAPI 加密字串
+        返回 base64 編碼的加密資料，格式：dpapi:base64data
+        """
+        if not plaintext:
+            return ""
+
+        try:
+            # 將字串轉為 bytes
+            plaintext_bytes = plaintext.encode('utf-8')
+
+            # 定義 DATA_BLOB 結構
+            class DATA_BLOB(ctypes.Structure):
+                _fields_ = [
+                    ('cbData', wintypes.DWORD),
+                    ('pbData', ctypes.POINTER(ctypes.c_char))
+                ]
+
+            # 準備輸入資料
+            buffer = ctypes.create_string_buffer(plaintext_bytes)
+            blob_in = DATA_BLOB(len(plaintext_bytes), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_char)))
+            blob_out = DATA_BLOB()
+
+            # 調用 CryptProtectData
+            if ctypes.windll.crypt32.CryptProtectData(
+                ctypes.byref(blob_in),
+                None,  # 描述
+                None,  # 可選的額外熵
+                None,  # 保留
+                None,  # 提示結構
+                0,     # 標誌
+                ctypes.byref(blob_out)
+            ):
+                # 讀取加密後的資料
+                encrypted_bytes = ctypes.string_at(blob_out.pbData, blob_out.cbData)
+
+                # 釋放記憶體
+                ctypes.windll.kernel32.LocalFree(blob_out.pbData)
+
+                # 轉為 base64 並加上前綴
+                encrypted_b64 = base64.b64encode(encrypted_bytes).decode('ascii')
+                return f"dpapi:{encrypted_b64}"
+            else:
+                # 加密失敗，返回原始值（向下相容）
+                return plaintext
+
+        except Exception as e:
+            print(f"加密失敗: {e}")
+            return plaintext
+
+    @staticmethod
+    def decrypt(encrypted: str) -> str:
+        """
+        使用 DPAPI 解密字串
+        如果不是 dpapi: 前綴，視為明文直接返回（向下相容）
+        """
+        if not encrypted:
+            return ""
+
+        # 檢查是否為加密格式
+        if not encrypted.startswith("dpapi:"):
+            # 明文格式，直接返回
+            return encrypted
+
+        try:
+            # 移除前綴並解碼 base64
+            encrypted_b64 = encrypted[6:]  # 移除 "dpapi:"
+            encrypted_bytes = base64.b64decode(encrypted_b64)
+
+            # 定義 DATA_BLOB 結構
+            class DATA_BLOB(ctypes.Structure):
+                _fields_ = [
+                    ('cbData', wintypes.DWORD),
+                    ('pbData', ctypes.POINTER(ctypes.c_char))
+                ]
+
+            # 準備輸入資料
+            buffer = ctypes.create_string_buffer(encrypted_bytes)
+            blob_in = DATA_BLOB(len(encrypted_bytes), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_char)))
+            blob_out = DATA_BLOB()
+
+            # 調用 CryptUnprotectData
+            if ctypes.windll.crypt32.CryptUnprotectData(
+                ctypes.byref(blob_in),
+                None,
+                None,
+                None,
+                None,
+                0,
+                ctypes.byref(blob_out)
+            ):
+                # 讀取解密後的資料
+                decrypted_bytes = ctypes.string_at(blob_out.pbData, blob_out.cbData)
+
+                # 釋放記憶體
+                ctypes.windll.kernel32.LocalFree(blob_out.pbData)
+
+                # 轉回字串
+                return decrypted_bytes.decode('utf-8')
+            else:
+                # 解密失敗，返回空字串
+                print("DPAPI 解密失敗")
+                return ""
+
+        except Exception as e:
+            print(f"解密失敗: {e}")
+            return ""
 
 
 class ConfigManager:
@@ -57,29 +175,74 @@ class ConfigManager:
             "auto_press_enter": True,
             "auto_click_play": True,
             "window_x": None,
-            "window_y": None
+            "window_y": None,
+            "encryption_enabled": True  # 標記是否啟用加密
         }
         if self.config_path.exists():
             try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     loaded = json.load(f)
+
                     # 清理舊版遺留欄位
                     legacy_keys = ["secret_key", "email", "password"]
                     for key in legacy_keys:
                         if key in loaded:
                             del loaded[key]
+
+                    # 解密帳號資料
+                    if "accounts" in loaded:
+                        needs_upgrade = False
+                        for account in loaded["accounts"]:
+                            # 檢查是否需要升級（明文 → 加密）
+                            if "email" in account and not account["email"].startswith("dpapi:"):
+                                needs_upgrade = True
+
+                            # 解密敏感欄位
+                            if "email" in account:
+                                account["email"] = DPAPIEncryption.decrypt(account["email"])
+                            if "password" in account:
+                                account["password"] = DPAPIEncryption.decrypt(account["password"])
+                            if "secret_key" in account:
+                                account["secret_key"] = DPAPIEncryption.decrypt(account["secret_key"])
+
+                        # 如果偵測到明文資料，自動升級並儲存
+                        if needs_upgrade:
+                            print("偵測到舊版明文設定，正在升級為加密格式...")
+                            loaded["encryption_enabled"] = True
+                            # 暫存解密後的資料
+                            temp_config = loaded.copy()
+                            self.config = temp_config
+                            # 重新加密並儲存
+                            self.save()
+
                     # 合併預設值（補齊新增的設定項）
                     for key, value in default.items():
                         if key not in loaded:
                             loaded[key] = value
+
                     return loaded
-            except:
+            except Exception as e:
+                print(f"載入設定失敗: {e}")
                 pass
         return default
 
     def save(self):
+        # 深拷貝一份用於加密儲存
+        config_to_save = json.loads(json.dumps(self.config))
+
+        # 加密帳號資料
+        if "accounts" in config_to_save and config_to_save.get("encryption_enabled", True):
+            for account in config_to_save["accounts"]:
+                # 加密敏感欄位
+                if "email" in account:
+                    account["email"] = DPAPIEncryption.encrypt(account["email"])
+                if "password" in account:
+                    account["password"] = DPAPIEncryption.encrypt(account["password"])
+                if "secret_key" in account:
+                    account["secret_key"] = DPAPIEncryption.encrypt(account["secret_key"])
+
         with open(self.config_path, "w", encoding="utf-8") as f:
-            json.dump(self.config, f, ensure_ascii=False, indent=2)
+            json.dump(config_to_save, f, ensure_ascii=False, indent=2)
 
     def get(self, key: str, default=None):
         return self.config.get(key, default)
