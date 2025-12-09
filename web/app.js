@@ -829,6 +829,11 @@ infoBtn.addEventListener('click', async () => {
     infoDialog.showModal();
 });
 
+// 開啟設定檔資料夾
+document.getElementById('openConfigFolderBtn').addEventListener('click', async () => {
+    await window.pywebview.api.open_config_folder();
+});
+
 // 複製 OTP
 copyBtn.addEventListener('click', async () => {
     const otp = otpDisplay.textContent.replace(' ', '');

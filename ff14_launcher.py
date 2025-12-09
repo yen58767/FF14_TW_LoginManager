@@ -158,8 +158,31 @@ class DPAPIEncryption:
 class ConfigManager:
     """設定檔管理"""
     def __init__(self):
-        self.config_path = Path.home() / ".ff14_login_config.json"
+        # 新路徑：使用 Windows AppData\Local
+        appdata_local = Path(os.getenv('LOCALAPPDATA', Path.home() / 'AppData' / 'Local'))
+        self.config_dir = appdata_local / "FF14LoginManager"
+        self.config_path = self.config_dir / "config.json"
+
+        # 舊路徑（用於遷移）
+        self.legacy_config_path = Path.home() / ".ff14_login_config.json"
+
+        # 確保資料夾存在
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+
+        # 自動遷移舊檔案
+        self._migrate_legacy_config()
+
         self.config = self.load()
+
+    def _migrate_legacy_config(self):
+        """自動遷移舊版設定檔到新位置"""
+        if self.legacy_config_path.exists() and not self.config_path.exists():
+            try:
+                import shutil
+                shutil.copy2(self.legacy_config_path, self.config_path)
+                print(f"已遷移設定檔：{self.legacy_config_path} → {self.config_path}")
+            except Exception as e:
+                print(f"遷移設定檔失敗: {e}")
 
     def load(self) -> dict:
         default = {
@@ -642,6 +665,15 @@ class Api:
     def get_config_path(self):
         """取得設定檔路徑"""
         return str(config.config_path)
+
+    def open_config_folder(self):
+        """開啟設定檔資料夾"""
+        try:
+            folder_path = str(config.config_dir)
+            os.startfile(folder_path)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     def browse_launcher_path(self):
         """開啟檔案選擇對話框"""
