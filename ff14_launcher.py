@@ -3,7 +3,7 @@ FF14 Login Manager
 使用 pywebview 介面，搭配 UI Automation API 操作 FF14 Launcher
 """
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 VERSION_CHECK_URL = "https://raw.githubusercontent.com/yen58767/FF14_TW_LoginManager/main/version.json"
 
 import sys
@@ -194,8 +194,11 @@ class ConfigManager:
                         needs_upgrade = False
                         for account in loaded["accounts"]:
                             # 檢查是否需要升級（明文 → 加密）
-                            if "email" in account and not account["email"].startswith("dpapi:"):
-                                needs_upgrade = True
+                            # 排除空字串，只有非空且不是 dpapi: 開頭的才需要升級
+                            for field in ["email", "password", "secret_key"]:
+                                if field in account and account[field] and not account[field].startswith("dpapi:"):
+                                    needs_upgrade = True
+                                    break
 
                             # 解密敏感欄位
                             if "email" in account:
