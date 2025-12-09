@@ -9,7 +9,7 @@ Final Fantasy XIV 登入管理器 - 自動化 OTP 輸入與多帳號管理工具
 - **自動化登入** - 自動啟動 Launcher、輸入 OTP、點擊 PLAY
 - **QR Code 掃描** - 從 Google Authenticator 匯出的 QR Code 提取 Secret Key
 - **主題切換** - 8 種顏色切換 + 明暗度調整
-
+- **DPAPI** - 微軟帳密加密所輸入的密鑰
 ## 下載
 
 前往 [Releases](https://github.com/yen58767/FF14_TW_LoginManager/releases) 下載最新版本
