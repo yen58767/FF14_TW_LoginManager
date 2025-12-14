@@ -676,21 +676,61 @@ class Api:
             return {"success": False, "error": str(e)}
 
     def browse_launcher_path(self):
-        """開啟檔案選擇對話框"""
-        import tkinter as tk
-        from tkinter import filedialog
+        """開啟檔案選擇對話框（使用 Windows 原生對話框）"""
+        try:
+            import ctypes
+            from ctypes import wintypes
 
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
+            # 使用 Windows API GetOpenFileName
+            OFN_FILEMUSTEXIST = 0x00001000
+            OFN_PATHMUSTEXIST = 0x00000800
+            OFN_NOCHANGEDIR = 0x00000008
+            MAX_PATH = 260
 
-        file_path = filedialog.askopenfilename(
-            title="選擇 FF14 Launcher",
-            filetypes=[("執行檔", "*.exe"), ("所有檔案", "*.*")]
-        )
+            class OPENFILENAME(ctypes.Structure):
+                _fields_ = [
+                    ("lStructSize", wintypes.DWORD),
+                    ("hwndOwner", wintypes.HWND),
+                    ("hInstance", wintypes.HINSTANCE),
+                    ("lpstrFilter", wintypes.LPCWSTR),
+                    ("lpstrCustomFilter", wintypes.LPWSTR),
+                    ("nMaxCustFilter", wintypes.DWORD),
+                    ("nFilterIndex", wintypes.DWORD),
+                    ("lpstrFile", wintypes.LPWSTR),
+                    ("nMaxFile", wintypes.DWORD),
+                    ("lpstrFileTitle", wintypes.LPWSTR),
+                    ("nMaxFileTitle", wintypes.DWORD),
+                    ("lpstrInitialDir", wintypes.LPCWSTR),
+                    ("lpstrTitle", wintypes.LPCWSTR),
+                    ("Flags", wintypes.DWORD),
+                    ("nFileOffset", wintypes.WORD),
+                    ("nFileExtension", wintypes.WORD),
+                    ("lpstrDefExt", wintypes.LPCWSTR),
+                    ("lCustData", wintypes.LPARAM),
+                    ("lpfnHook", ctypes.c_void_p),
+                    ("lpTemplateName", wintypes.LPCWSTR),
+                    ("pvReserved", ctypes.c_void_p),
+                    ("dwReserved", wintypes.DWORD),
+                    ("FlagsEx", wintypes.DWORD),
+                ]
 
-        root.destroy()
-        return file_path if file_path else ""
+            file_buffer = ctypes.create_unicode_buffer(MAX_PATH)
+
+            ofn = OPENFILENAME()
+            ofn.lStructSize = ctypes.sizeof(OPENFILENAME)
+            ofn.hwndOwner = None
+            ofn.lpstrFilter = "執行檔 (*.exe)\0*.exe\0所有檔案 (*.*)\0*.*\0\0"
+            ofn.lpstrFile = ctypes.cast(file_buffer, wintypes.LPWSTR)
+            ofn.nMaxFile = MAX_PATH
+            ofn.lpstrTitle = "選擇 FF14 Launcher"
+            ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR
+
+            if ctypes.windll.comdlg32.GetOpenFileNameW(ctypes.byref(ofn)):
+                return file_buffer.value
+            return ""
+        except Exception as e:
+            print(f"開啟檔案對話框失敗: {e}")
+            return ""
 
     def start_automation(self, secret_key: str, email: str = "", password: str = ""):
         """開始自動化流程"""
