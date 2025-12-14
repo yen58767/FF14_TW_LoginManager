@@ -15,6 +15,11 @@ import threading
 import urllib.request
 from pathlib import Path
 import base64
+import traceback
+
+# ============ Log 路徑（只在錯誤時寫入） ============
+LOG_DIR = Path(os.environ.get("LOCALAPPDATA", "")) / "FF14LoginManager"
+LOG_FILE = LOG_DIR / "error.log"
 
 # 設定 Windows AppUserModelID，讓程式可以正確釘選到工作列
 import ctypes
@@ -898,6 +903,7 @@ def set_window_icon(icon_path):
 def main():
     global window
 
+
     # 取得腳本所在目錄
     script_dir = os.path.dirname(os.path.abspath(__file__))
     web_dir = os.path.join(script_dir, "web")
@@ -942,5 +948,70 @@ def main():
     webview.start()
 
 
+def show_error_dialog(log_path: str, error_text: str):
+    """顯示可複製的錯誤視窗"""
+    import tkinter as tk
+
+    root = tk.Tk()
+    root.title("FF14 Login Manager 啟動失敗")
+    root.geometry("500x220")
+    root.resizable(False, False)
+    root.attributes('-topmost', True)
+
+    # 說明文字
+    tk.Label(root, text="程式發生錯誤，請將以下檔案傳給開發者：", pady=10).pack()
+
+    # 可複製的路徑框
+    path_frame = tk.Frame(root)
+    path_frame.pack(fill='x', padx=20, pady=5)
+    path_entry = tk.Entry(path_frame, width=60)
+    path_entry.insert(0, str(log_path))
+    path_entry.config(state='readonly')
+    path_entry.pack(side='left', fill='x', expand=True)
+
+    def copy_path():
+        root.clipboard_clear()
+        root.clipboard_append(str(log_path))
+        copy_btn.config(text="已複製!")
+
+    copy_btn = tk.Button(path_frame, text="複製", command=copy_path, width=8)
+    copy_btn.pack(side='right', padx=(5, 0))
+
+    # 錯誤訊息
+    tk.Label(root, text=f"錯誤訊息：{error_text}", wraplength=450, pady=10, fg='red').pack()
+
+    # 按鈕區
+    btn_frame = tk.Frame(root)
+    btn_frame.pack(pady=10)
+
+    def open_folder():
+        # 開啟資料夾並選取檔案
+        subprocess.run(['explorer', '/select,', str(log_path)])
+
+    tk.Button(btn_frame, text="開啟資料夾", command=open_folder, width=12).pack(side='left', padx=5)
+    tk.Button(btn_frame, text="確定", command=root.destroy, width=10).pack(side='left', padx=5)
+
+    root.mainloop()
+
+
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        error_msg = traceback.format_exc()
+
+        # 只在錯誤時寫入 log
+        try:
+            LOG_DIR.mkdir(parents=True, exist_ok=True)
+            with open(LOG_FILE, 'w', encoding='utf-8') as f:
+                f.write(f"FF14 Login Manager v{VERSION} 錯誤報告\n")
+                f.write(f"時間: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Python: {sys.version}\n")
+                f.write(f"{'='*50}\n\n")
+                f.write(error_msg)
+        except:
+            pass
+
+        # 彈出錯誤視窗（可複製路徑）
+        show_error_dialog(LOG_FILE, str(e))
+        sys.exit(1)
