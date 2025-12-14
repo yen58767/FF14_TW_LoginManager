@@ -155,6 +155,16 @@ async function checkForUpdates(showNoUpdateMsg = false) {
             document.getElementById('currentVersion').textContent = result.current_version;
             document.getElementById('newVersion').textContent = result.new_version;
             document.getElementById('downloadLink').href = result.download_url;
+
+            // 顯示更新內容
+            const changelogEl = document.getElementById('changelog');
+            if (result.changelog) {
+                changelogEl.textContent = result.changelog;
+                changelogEl.classList.remove('hidden');
+            } else {
+                changelogEl.classList.add('hidden');
+            }
+
             document.getElementById('updateDialog').showModal();
         } else if (showNoUpdateMsg) {
             // 手動檢查時，如果沒有更新，顯示提示

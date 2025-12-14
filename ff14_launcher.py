@@ -851,6 +851,7 @@ def check_for_updates():
             data = json.loads(response.read().decode('utf-8'))
             remote_version = data.get("version", "0.0.0")
             download_url = data.get("download_url", "")
+            changelog = data.get("changelog", "")
 
             # 比較版本
             if remote_version > VERSION:
@@ -858,7 +859,8 @@ def check_for_updates():
                     "has_update": True,
                     "current_version": VERSION,
                     "new_version": remote_version,
-                    "download_url": download_url
+                    "download_url": download_url,
+                    "changelog": changelog
                 }
     except Exception as e:
         print(f"檢查更新失敗: {e}")
