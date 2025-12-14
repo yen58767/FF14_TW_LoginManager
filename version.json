@@ -1,4 +1,5 @@
 {
   "version": "1.0.4",
-  "download_url": "https://github.com/yen58767/FF14_TW_LoginManager/releases"
+  "download_url": "https://github.com/yen58767/FF14_TW_LoginManager/releases",
+  "changelog": "- 新增啟動失敗時的錯誤提示\n- 新增 FF14官網與 Github 連結"
 }
