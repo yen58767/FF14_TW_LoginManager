@@ -165,6 +165,23 @@ body.light-mode .text-gray-300 {
     color: #3a3a4a !important;
 }
 
+/* 自定義 text-black 類別 (深色模式用淺色，亮色模式用深色) */
+.text-black-400 {
+    color: var(--text-secondary);
+}
+
+.text-black-500 {
+    color: var(--text-secondary);
+}
+
+body.light-mode .text-black-400 {
+    color: #3a3a3f !important;
+}
+
+body.light-mode .text-black-500 {
+    color: #2d2d30 !important;
+}
+
 .title-text {
     color: var(--primary);
 }

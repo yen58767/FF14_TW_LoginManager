@@ -210,20 +210,24 @@ function initTheme() {
         });
     });
 
-    // 給我驚喜按鈕
+    // 給我驚喜按鈕 - 完全隨機顏色
     const surpriseBtn = document.getElementById('surpriseThemeBtn');
     if (surpriseBtn) {
         surpriseBtn.addEventListener('click', () => {
-            const themes = ['tsuyukusa', 'shu', 'koke', 'wakatake', 'fuji', 'sakura', 'gunjou', 'ukon'];
-            const randomTheme = themes[Math.floor(Math.random() * themes.length)];
-            const randomBrightness = Math.floor(Math.random() * 101); // 0-100
+            // 各部分獨立隨機
+            const randomColors = {
+                primaryHue: Math.floor(Math.random() * 360),
+                bgHue: Math.floor(Math.random() * 360),
+                bgSat: Math.floor(Math.random() * 30) + 25,
+                brightness: Math.floor(Math.random() * 101)
+            };
 
-            applyTheme(randomTheme);
-            applyBrightness(randomBrightness);
-            brightnessSlider.value = randomBrightness;
+            applyRandomColor(randomColors);
+            applyBrightness(randomColors.brightness);
+            brightnessSlider.value = randomColors.brightness;
 
-            currentTheme = randomTheme;
-            brightness = randomBrightness;
+            currentTheme = `random-${randomColors.primaryHue}-${randomColors.bgHue}-${randomColors.bgSat}`;
+            brightness = randomColors.brightness;
             saveConfig();
         });
     }
@@ -240,7 +244,32 @@ function initTheme() {
 }
 
 function applyTheme(theme) {
+    // 檢查是否為隨機主題
+    if (theme && theme.startsWith('random-')) {
+        const parts = theme.split('-');
+        const randomColors = {
+            primaryHue: parseInt(parts[1]),
+            bgHue: parseInt(parts[2]),
+            bgSat: parseInt(parts[3])
+        };
+        applyRandomColor(randomColors);
+        return;
+    }
+
     document.body.setAttribute('data-theme', theme);
+
+    // 清除隨機顏色的 inline styles
+    const root = document.documentElement;
+    root.style.removeProperty('--primary');
+    root.style.removeProperty('--primary-dark');
+    root.style.removeProperty('--bg-body-h');
+    root.style.removeProperty('--bg-body-s');
+    root.style.removeProperty('--bg-card-h');
+    root.style.removeProperty('--bg-card-s');
+    root.style.removeProperty('--bg-input-h');
+    root.style.removeProperty('--bg-input-s');
+    root.style.removeProperty('--text-primary');
+    root.style.removeProperty('--text-secondary');
 
     // 更新選中狀態
     themeOptions.forEach(option => {
@@ -252,14 +281,43 @@ function applyTheme(theme) {
     });
 }
 
+function applyRandomColor(colors) {
+    const root = document.documentElement;
+    const { primaryHue, bgHue, bgSat } = colors;
+
+    // 移除預設主題屬性，避免衝突
+    document.body.removeAttribute('data-theme');
+
+    // 主色調 - 獨立色相
+    root.style.setProperty('--primary', `hsl(${primaryHue}, 65%, 55%)`);
+    root.style.setProperty('--primary-dark', `hsl(${primaryHue}, 60%, 45%)`);
+
+    // 背景色 - 獨立色相
+    root.style.setProperty('--bg-body-h', bgHue);
+    root.style.setProperty('--bg-body-s', `${bgSat}%`);
+    root.style.setProperty('--bg-card-h', bgHue);
+    root.style.setProperty('--bg-card-s', `${bgSat - 5}%`);
+    root.style.setProperty('--bg-input-h', bgHue);
+    root.style.setProperty('--bg-input-s', `${bgSat - 8}%`);
+
+    // 文字顏色 - 中性，不跟隨任何色相
+    root.style.setProperty('--text-primary', '#E0E6ED');
+    root.style.setProperty('--text-secondary', '#8899A6');
+
+    // 清除主題選中狀態
+    themeOptions.forEach(option => {
+        option.classList.remove('active');
+    });
+}
+
 function applyBrightness(value) {
     // 0 = 最暗, 50 = 原始, 100 = 最亮
     // 調整背景色的明度
     const lightness = value / 100; // 0 ~ 1
     document.documentElement.style.setProperty('--brightness-adjust', lightness);
 
-    // 當亮度 > 85 時切換為深色文字
-    if (value > 60) {
+    // 當亮度 > 50 時切換為深色文字
+    if (value > 35) {
         document.body.classList.add('light-mode');
     } else {
         document.body.classList.remove('light-mode');
