@@ -3,7 +3,7 @@ FF14 Login Manager
 使用 pywebview 介面，搭配 UI Automation API 操作 FF14 Launcher
 """
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 VERSION_CHECK_URL = "https://raw.githubusercontent.com/yen58767/FF14_TW_LoginManager/main/version.json"
 
 import sys
@@ -641,6 +641,103 @@ automation = LauncherAutomation(config)
 window = None
 
 
+def resolve_shortcut(lnk_path: str) -> str:
+    """
+    解析 .lnk 捷徑檔案，取得實際目標路徑
+    支援一般捷徑和 Windows Installer 廣告捷徑
+    """
+    if not lnk_path.lower().endswith('.lnk'):
+        return lnk_path
+
+    if not os.path.exists(lnk_path):
+        return lnk_path
+
+    target_path = None
+
+    try:
+        # 方法1: 使用 COM Shell 物件解析一般捷徑
+        import comtypes.client
+
+        # 建立 Shell 物件
+        shell = comtypes.client.CreateObject("WScript.Shell")
+        shortcut = shell.CreateShortcut(lnk_path)
+        target_path = shortcut.TargetPath
+
+        # 如果取得的路徑有效且存在，直接返回
+        if target_path and os.path.exists(target_path):
+            return target_path
+
+    except Exception as e:
+        print(f"WScript.Shell 解析失敗: {e}")
+
+    # 方法2: 嘗試解析 Windows Installer 廣告捷徑
+    # 這類捷徑的 TargetPath 可能是空的或指向 Installer 快取
+    try:
+        # 使用 MsiGetShortcutTarget API
+        msi = ctypes.windll.msi
+
+        # 準備緩衝區
+        product_code = ctypes.create_unicode_buffer(39)  # GUID + null
+        feature_id = ctypes.create_unicode_buffer(256)
+        component_code = ctypes.create_unicode_buffer(39)
+
+        result = msi.MsiGetShortcutTargetW(
+            lnk_path,
+            product_code,
+            feature_id,
+            component_code
+        )
+
+        if result == 0:  # ERROR_SUCCESS
+            # 取得元件的安裝路徑
+            path_buffer = ctypes.create_unicode_buffer(512)
+            path_len = ctypes.c_uint(512)
+
+            # INSTALLSTATE_LOCAL = 3
+            state = msi.MsiGetComponentPathW(
+                product_code.value,
+                component_code.value,
+                path_buffer,
+                ctypes.byref(path_len)
+            )
+
+            if state >= 1:  # INSTALLSTATE_LOCAL or better
+                resolved_path = path_buffer.value
+                if resolved_path and os.path.exists(resolved_path):
+                    return resolved_path
+    except Exception as e:
+        print(f"MSI 解析失敗: {e}")
+
+    # 方法3: 使用 PowerShell 作為備用方案
+    try:
+        import subprocess
+        # 使用 PowerShell 解析捷徑
+        ps_command = f'''
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut("{lnk_path}")
+$shortcut.TargetPath
+'''
+        result = subprocess.run(
+            ['powershell', '-NoProfile', '-Command', ps_command],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        if result.returncode == 0:
+            ps_target = result.stdout.strip()
+            if ps_target and os.path.exists(ps_target):
+                return ps_target
+    except Exception as e:
+        print(f"PowerShell 解析失敗: {e}")
+
+    # 如果所有方法都失敗，返回原始 TargetPath（如果有的話）
+    if target_path and target_path != lnk_path:
+        return target_path
+
+    return lnk_path
+
+
 class Api:
     """pywebview API - 提供給 JavaScript 呼叫的方法"""
 
@@ -724,14 +821,30 @@ class Api:
             ofn = OPENFILENAME()
             ofn.lStructSize = ctypes.sizeof(OPENFILENAME)
             ofn.hwndOwner = None
-            ofn.lpstrFilter = "執行檔 (*.exe)\0*.exe\0所有檔案 (*.*)\0*.*\0\0"
+            # 支援 .exe 和 .lnk 捷徑檔案
+            ofn.lpstrFilter = "執行檔與捷徑 (*.exe;*.lnk)\0*.exe;*.lnk\0執行檔 (*.exe)\0*.exe\0捷徑 (*.lnk)\0*.lnk\0所有檔案 (*.*)\0*.*\0\0"
             ofn.lpstrFile = ctypes.cast(file_buffer, wintypes.LPWSTR)
             ofn.nMaxFile = MAX_PATH
-            ofn.lpstrTitle = "選擇 FF14 Launcher"
+            ofn.lpstrTitle = "選擇 FF14 Launcher（可選擇捷徑或執行檔）"
             ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR
 
             if ctypes.windll.comdlg32.GetOpenFileNameW(ctypes.byref(ofn)):
-                return file_buffer.value
+                selected_path = file_buffer.value
+
+                # 如果選擇的是 .lnk 捷徑，解析出實際路徑
+                if selected_path.lower().endswith('.lnk'):
+                    resolved_path = resolve_shortcut(selected_path)
+                    print(f"捷徑解析: {selected_path} -> {resolved_path}")
+
+                    # 確保解析後的路徑有效
+                    if resolved_path and os.path.exists(resolved_path):
+                        return resolved_path
+                    else:
+                        # 解析失敗，返回空字串並提示錯誤
+                        print(f"無法解析捷徑目標: {selected_path}")
+                        return ""
+
+                return selected_path
             return ""
         except Exception as e:
             print(f"開啟檔案對話框失敗: {e}")
@@ -768,6 +881,33 @@ class Api:
     def get_version(self):
         """取得當前版本"""
         return VERSION
+    def reset_window_position(self):
+        """重置視窗位置到螢幕中央"""
+        try:
+            # 取得螢幕尺寸
+            screen_width = ctypes.windll.user32.GetSystemMetrics(0)
+            screen_height = ctypes.windll.user32.GetSystemMetrics(1)
+
+            # 計算視窗中央位置
+            window_width = 680
+            window_height = 580
+            x = (screen_width - window_width) // 2
+            y = (screen_height - window_height) // 2
+
+            # 移動視窗
+            window.move(x, y)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def save_hotkey_config(self, hotkey_config: dict):
+        """儲存快捷鍵設定"""
+        try:
+            config.set("enable_reset_hotkey", hotkey_config.get("enable_reset_hotkey", True))
+            config.set("reset_hotkey", hotkey_config.get("reset_hotkey", "F5"))
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     def detect_launcher(self):
         """偵測 Launcher 是否已啟動"""

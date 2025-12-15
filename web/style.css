@@ -467,3 +467,15 @@ section:hover {
     background-color: hsl(var(--bg-card-h), var(--bg-card-s), var(--card-l));
     color: var(--text-primary);
 }
+
+.settings-tab {
+    color: var(--text-secondary);
+}
+
+.settings-tab:hover {
+    color: var(--text-primary);
+}
+
+.settings-tab.active {
+    color: var(--primary);
+}

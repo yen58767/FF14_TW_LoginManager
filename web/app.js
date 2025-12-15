@@ -29,6 +29,13 @@ const brightnessSlider = document.getElementById('brightnessSlider');
 const statusText = document.getElementById('statusText');
 const qrScanBtn = document.getElementById('qrScanBtn');
 
+// Tab 和快捷鍵元素
+const tabAutomation = document.getElementById('tabAutomation');
+const tabOther = document.getElementById('tabOther');
+const tabContentAutomation = document.getElementById('tabContentAutomation');
+const tabContentOther = document.getElementById('tabContentOther');
+const enableResetHotkey = document.getElementById('enableResetHotkey');
+const hotkeyInput = document.getElementById('hotkeyInput');
 // Dialogs
 const qrDialog = document.getElementById('qrDialog');
 const qrDialogClose = document.getElementById('qrDialogClose');
@@ -955,3 +962,96 @@ function automationComplete(success, message) {
         resetToReady();
     }, 5000);
 }
+
+// ========== Tab 切換 ==========
+
+tabAutomation.addEventListener('click', () => {
+    tabAutomation.classList.add('active', 'border-current');
+    tabAutomation.classList.remove('border-transparent');
+    tabOther.classList.remove('active', 'border-current');
+    tabOther.classList.add('border-transparent');
+    tabContentAutomation.classList.remove('hidden');
+    tabContentOther.classList.add('hidden');
+});
+
+tabOther.addEventListener('click', () => {
+    tabOther.classList.add('active', 'border-current');
+    tabOther.classList.remove('border-transparent');
+    tabAutomation.classList.remove('active', 'border-current');
+    tabAutomation.classList.add('border-transparent');
+    tabContentOther.classList.remove('hidden');
+    tabContentAutomation.classList.add('hidden');
+});
+
+// ========== 重置視窗位置快捷鍵 ==========
+
+let currentHotkey = 'F5';
+let isRecordingHotkey = false;
+
+// 載入快捷鍵設定
+async function loadHotkeyConfig() {
+    try {
+        while (!window.pywebview || !window.pywebview.api) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        const config = await window.pywebview.api.get_config();
+        if (config.reset_hotkey) {
+            currentHotkey = config.reset_hotkey;
+            hotkeyInput.textContent = currentHotkey;
+        }
+        if (config.enable_reset_hotkey !== undefined) {
+            enableResetHotkey.checked = config.enable_reset_hotkey;
+        }
+    } catch (e) {
+        console.error('載入快捷鍵設定失敗:', e);
+    }
+}
+
+// 儲存快捷鍵設定
+async function saveHotkeyConfig() {
+    try {
+        await window.pywebview.api.save_hotkey_config({
+            enable_reset_hotkey: enableResetHotkey.checked,
+            reset_hotkey: currentHotkey
+        });
+    } catch (e) {
+        console.error('儲存快捷鍵設定失敗:', e);
+    }
+}
+
+// 快捷鍵錄製
+hotkeyInput.addEventListener('click', () => {
+    isRecordingHotkey = true;
+    hotkeyInput.textContent = '按下按鍵...';
+    hotkeyInput.classList.add('border-yellow-400');
+});
+
+// 監聽按鍵
+document.addEventListener('keydown', async (e) => {
+    // 錄製快捷鍵模式
+    if (isRecordingHotkey) {
+        e.preventDefault();
+        currentHotkey = e.key;
+        hotkeyInput.textContent = currentHotkey;
+        hotkeyInput.classList.remove('border-yellow-400');
+        isRecordingHotkey = false;
+        await saveHotkeyConfig();
+        return;
+    }
+
+    // 觸發重置視窗位置
+    if (enableResetHotkey.checked && e.key === currentHotkey) {
+        e.preventDefault();
+        try {
+            await window.pywebview.api.reset_window_position();
+        } catch (err) {
+            console.error('重置視窗位置失敗:', err);
+        }
+    }
+});
+
+// 啟用/停用快捷鍵變更時儲存
+enableResetHotkey.addEventListener('change', saveHotkeyConfig);
+
+// 頁面載入時載入快捷鍵設定
+loadHotkeyConfig();
