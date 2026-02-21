@@ -35,12 +35,13 @@
                 <div class="card-bg rounded-xl p-4 shadow-lg space-y-3">
                     <!-- 帳號選擇 -->
                     <div class="flex gap-2">
-                        <select
-                            id="accountSelect"
-                            class="flex-1 input-bg border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-current transition-colors"
-                        >
-                            <option value="">-- 請新增帳號 --</option>
-                        </select>
+                        <div class="custom-select flex-1" id="accountSelect" data-value="">
+                            <div class="custom-select-trigger">
+                                <span>-- 請新增帳號 --</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <div class="custom-select-options"></div>
+                        </div>
                         <button
                             id="addAccountBtn"
                             class="px-3 py-2 input-bg border border-white/10 rounded-lg text-sm text-black-400 hover:text-white hover:border-white/30 transition-colors"
@@ -180,9 +181,15 @@
                 </div>
                 <div class="flex items-center gap-2 mt-2">
                     <span class="text-xs text-black-400">啟動螢幕：</span>
-                    <select id="launcherMonitor" class="flex-1 input-bg border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-current transition-colors">
-                        <option value="-1">不指定</option>
-                    </select>
+                    <div class="custom-select custom-select-xs flex-1" id="launcherMonitor" data-value="-1">
+                        <div class="custom-select-trigger">
+                            <span>不指定</span>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <div class="custom-select-options">
+                            <div class="custom-select-option selected" data-value="-1">不指定</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -253,10 +260,39 @@
 
             <!-- Tab 內容：其他 -->
             <div id="tabContentOther" class="tab-content hidden">
-                <!-- 啟動後最小化 -->
+                <!-- 視窗行為 -->
                 <div class="mb-4">
                     <div class="text-sm text-black-400 mb-2">視窗行為</div>
-                    <div class="input-bg rounded-lg p-3">
+                    <div class="input-bg rounded-lg p-3 space-y-3">
+                        <!-- 關閉按鈕行為 -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-black-400 whitespace-nowrap">關閉按鈕</span>
+                            <div class="custom-select flex-1" id="closeActionSelect" data-value="minimize_to_tray">
+                                <div class="custom-select-trigger">
+                                    <span>最小化到系統匣</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="custom-select-options">
+                                    <div class="custom-select-option selected" data-value="minimize_to_tray">最小化到系統匣</div>
+                                    <div class="custom-select-option" data-value="quit">直接關閉程式</div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 最小化按鈕行為 -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-black-400 whitespace-nowrap">最小化按鈕</span>
+                            <div class="custom-select flex-1" id="minimizeActionSelect" data-value="taskbar">
+                                <div class="custom-select-trigger">
+                                    <span>最小化到工作列</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="custom-select-options">
+                                    <div class="custom-select-option selected" data-value="taskbar">最小化到工作列</div>
+                                    <div class="custom-select-option" data-value="tray">最小化到系統匣</div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 啟動後自動最小化 -->
                         <label class="flex items-center gap-2 cursor-pointer group">
                             <input type="checkbox" id="minimizeAfterLaunch" class="checkbox-custom">
                             <span class="text-sm group-hover:text-white transition-colors">啟動後自動最小化到系統匣</span>

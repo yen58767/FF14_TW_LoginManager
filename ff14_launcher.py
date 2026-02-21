@@ -211,6 +211,8 @@ class ConfigManager:
             "character_select_press_count": 6,
             "character_select_interval": 5,
             "launcher_monitor": -1,
+            "close_action": "minimize_to_tray",  # minimize_to_tray | quit
+            "minimize_action": "taskbar",          # taskbar | tray
             "minimize_after_launch": False,
             "window_x": None,
             "window_y": None,
@@ -1043,8 +1045,59 @@ class SystemTrayManager:
         popup.focus_force()
         popup.wait_window(popup)
 
+    def _is_game_running(self):
+        """檢查 ffxiv_dx11.exe / ffxiv.exe 是否正在執行"""
+        try:
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            OpenProcess = ctypes.windll.kernel32.OpenProcess
+            CloseHandle = ctypes.windll.kernel32.CloseHandle
+            EnumProcesses = ctypes.windll.psapi.EnumProcesses
+            GetProcessImageFileNameW = ctypes.windll.psapi.GetProcessImageFileNameW
+
+            pids = (ctypes.c_ulong * 2048)()
+            cb = ctypes.c_ulong()
+            EnumProcesses(pids, ctypes.sizeof(pids), ctypes.byref(cb))
+
+            for i in range(cb.value // ctypes.sizeof(ctypes.c_ulong)):
+                pid = pids[i]
+                if pid == 0:
+                    continue
+                handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+                if handle:
+                    try:
+                        name = ctypes.create_unicode_buffer(512)
+                        if GetProcessImageFileNameW(handle, name, 512):
+                            exe = name.value.split("\\")[-1].lower()
+                            if exe in ("ffxiv_dx11.exe", "ffxiv.exe"):
+                                return True
+                    finally:
+                        CloseHandle(handle)
+        except Exception:
+            pass
+        return False
+
+    def _confirm_launch(self):
+        """遊戲已啟動時彈出確認對話框，回傳 True 表示繼續"""
+        import tkinter as tk
+        from tkinter import messagebox
+
+        if not self._tk_root:
+            self._tk_root = tk.Tk()
+            self._tk_root.withdraw()
+
+        result = messagebox.askyesno(
+            "遊戲已在執行中",
+            "偵測到遊戲已經在執行中，確定要再次啟動嗎？",
+            parent=self._tk_root,
+        )
+        return result
+
     def _launch_game(self, *args):
         """從系統匣啟動遊戲（完整自動化流程）"""
+        if self._is_game_running():
+            if not self._confirm_launch():
+                return
+
         accounts = config.get("accounts", [])
         selected = config.get("selected_account", -1)
 
@@ -1403,12 +1456,21 @@ def save_window_position():
 
 
 def on_closing():
-    """按 X 時隱藏到系統匣；結束程式時真正關閉"""
+    """按 X 時依設定決定關閉或隱藏到系統匣"""
     if _force_quit:
         save_window_position()
         if tray_manager:
             tray_manager.stop()
         return True
+
+    close_action = config.get("close_action", "minimize_to_tray")
+    if close_action == "quit":
+        save_window_position()
+        if tray_manager:
+            tray_manager.stop()
+        return True
+
+    # 最小化到系統匣
     save_window_position()
     tray_manager.save_placement()
     window.hide()
@@ -1517,7 +1579,13 @@ def main():
     # 註冊關閉事件
     window.events.closing += on_closing
 
-    # 最小化時：正常縮到工作列，不隱藏
+    # 最小化時：依設定決定縮到工作列或隱藏到系統匣
+    def on_minimized():
+        if config.get("minimize_action") == "tray":
+            tray_manager.save_placement()
+            window.hide()
+
+    window.events.minimized += on_minimized
 
     # 視窗顯示後設定圖示並啟動系統匣
     def on_shown():

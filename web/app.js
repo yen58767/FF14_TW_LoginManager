@@ -40,6 +40,8 @@ const tabAutomation = document.getElementById('tabAutomation');
 const tabOther = document.getElementById('tabOther');
 const tabContentAutomation = document.getElementById('tabContentAutomation');
 const tabContentOther = document.getElementById('tabContentOther');
+const closeActionSelect = document.getElementById('closeActionSelect');
+const minimizeActionSelect = document.getElementById('minimizeActionSelect');
 const minimizeAfterLaunch = document.getElementById('minimizeAfterLaunch');
 const enableResetHotkey = document.getElementById('enableResetHotkey');
 const hotkeyInput = document.getElementById('hotkeyInput');
@@ -682,14 +684,14 @@ async function loadConfig() {
         // 載入螢幕列表
         try {
             const monitors = await window.pywebview.api.get_monitors();
-            launcherMonitor.innerHTML = '<option value="-1">不指定</option>';
+            const monitorItems = [{ value: -1, label: '不指定' }];
             monitors.forEach((m, i) => {
-                const label = `螢幕 ${i + 1} (${m.width}x${m.height}${m.primary ? ', 主螢幕' : ''})`;
-                const opt = document.createElement('option');
-                opt.value = i;
-                opt.textContent = label;
-                launcherMonitor.appendChild(opt);
+                monitorItems.push({
+                    value: i,
+                    label: `螢幕 ${i + 1} (${m.width}x${m.height}${m.primary ? ', 主螢幕' : ''})`,
+                });
             });
+            setCustomSelectOptions(launcherMonitor, monitorItems, saveConfig);
         } catch (e) {
             console.error('載入螢幕列表失敗:', e);
         }
@@ -700,7 +702,7 @@ async function loadConfig() {
         currentTheme = config.theme || 'tsuyukusa';
         brightness = config.brightness ?? 50;
 
-        launcherMonitor.value = config.launcher_monitor ?? -1;
+        setCustomSelectValue(launcherMonitor, config.launcher_monitor ?? -1);
 
         autoCheckUpdate.checked = config.auto_check_update !== false;
         autoLaunch.checked = config.auto_launch !== false;
@@ -714,6 +716,8 @@ async function loadConfig() {
         charSelectDelay.value = config.character_select_delay ?? 20;
         charSelectPressCount.value = config.character_select_press_count ?? 6;
         charSelectInterval.value = config.character_select_interval ?? 5;
+        setCustomSelectValue(closeActionSelect, config.close_action || 'minimize_to_tray');
+        setCustomSelectValue(minimizeActionSelect, config.minimize_action || 'taskbar');
         minimizeAfterLaunch.checked = config.minimize_after_launch === true;
 
         refreshAccountList();
@@ -727,7 +731,7 @@ async function saveConfig() {
     try {
         await window.pywebview.api.save_config({
             launcher_path: launcherPathInput.value,
-            launcher_monitor: parseInt(launcherMonitor.value),
+            launcher_monitor: parseInt(launcherMonitor.dataset.value),
             accounts: accounts,
             selected_account: selectedAccountIndex,
             theme: currentTheme,
@@ -744,6 +748,8 @@ async function saveConfig() {
             character_select_delay: parseInt(charSelectDelay.value) || 20,
             character_select_press_count: parseInt(charSelectPressCount.value) || 6,
             character_select_interval: parseInt(charSelectInterval.value) || 5,
+            close_action: closeActionSelect.dataset.value,
+            minimize_action: minimizeActionSelect.dataset.value,
             minimize_after_launch: minimizeAfterLaunch.checked
         });
     } catch (error) {
@@ -754,25 +760,27 @@ async function saveConfig() {
 // ========== 帳號管理 ==========
 
 function refreshAccountList() {
-    accountSelect.innerHTML = '';
-
+    let items;
     if (accounts.length === 0) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = '-- 請新增帳號 --';
-        accountSelect.appendChild(option);
+        items = [{ value: '', label: '-- 請新增帳號 --' }];
     } else {
-        accounts.forEach((account, index) => {
-            const option = document.createElement('option');
-            option.value = index;
-            option.textContent = account.name || `帳號 ${index + 1}`;
-            accountSelect.appendChild(option);
-        });
+        items = accounts.map((account, index) => ({
+            value: index,
+            label: account.name || `帳號 ${index + 1}`,
+        }));
     }
 
-    if (selectedAccountIndex >= 0 && selectedAccountIndex < accounts.length) {
-        accountSelect.value = selectedAccountIndex;
-    }
+    setCustomSelectOptions(accountSelect, items, (value) => {
+        if (value !== '') {
+            selectedAccountIndex = parseInt(value);
+            loadSelectedAccount();
+            saveConfig();
+        }
+    });
+
+    const selected = (selectedAccountIndex >= 0 && selectedAccountIndex < accounts.length)
+        ? selectedAccountIndex : (accounts.length > 0 ? 0 : '');
+    setCustomSelectValue(accountSelect, selected);
 }
 
 function loadSelectedAccount() {
@@ -856,15 +864,7 @@ browseBtn.addEventListener('click', async () => {
     }
 });
 
-// 帳號選擇變更
-accountSelect.addEventListener('change', () => {
-    const value = accountSelect.value;
-    if (value !== '') {
-        selectedAccountIndex = parseInt(value);
-        loadSelectedAccount();
-        saveConfig();
-    }
-});
+// 帳號選擇變更（由 custom select onChange 處理）
 
 // 新增帳號
 addAccountBtn.addEventListener('click', () => {
@@ -935,7 +935,7 @@ toggleKeyBtn.addEventListener('click', () => {
 });
 
 // 自動化選項變更
-launcherMonitor.addEventListener('change', saveConfig);
+// launcherMonitor 變更由 custom select onChange 處理
 autoCheckUpdate.addEventListener('change', saveConfig);
 autoLaunch.addEventListener('change', saveConfig);
 autoInputCredentials.addEventListener('change', saveConfig);
@@ -1221,3 +1221,77 @@ minimizeAfterLaunch.addEventListener('change', saveConfig);
 
 // 頁面載入時載入快捷鍵設定
 loadHotkeyConfig();
+
+// ========== 自訂下拉選單 ==========
+
+function setCustomSelectValue(selectEl, value) {
+    selectEl.dataset.value = String(value);
+    const options = selectEl.querySelectorAll('.custom-select-option');
+    let found = false;
+    options.forEach(opt => {
+        const match = opt.dataset.value === String(value);
+        opt.classList.toggle('selected', match);
+        if (match) {
+            selectEl.querySelector('.custom-select-trigger span').textContent = opt.textContent;
+            found = true;
+        }
+    });
+    if (!found && options.length > 0) {
+        selectEl.querySelector('.custom-select-trigger span').textContent = options[0].textContent;
+        selectEl.dataset.value = options[0].dataset.value;
+        options[0].classList.add('selected');
+    }
+}
+
+function setCustomSelectOptions(selectEl, items, onChange) {
+    const container = selectEl.querySelector('.custom-select-options');
+    container.innerHTML = '';
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'custom-select-option';
+        div.dataset.value = String(item.value);
+        div.textContent = item.label;
+        div.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setCustomSelectValue(selectEl, item.value);
+            selectEl.classList.remove('open');
+            if (onChange) onChange(item.value);
+        });
+        container.appendChild(div);
+    });
+}
+
+function initCustomSelect(selectEl, onChange) {
+    const trigger = selectEl.querySelector('.custom-select-trigger');
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.custom-select.open').forEach(el => {
+            if (el !== selectEl) el.classList.remove('open');
+        });
+        selectEl.classList.toggle('open');
+    });
+
+    // 綁定已有的靜態 options
+    selectEl.querySelectorAll('.custom-select-option').forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setCustomSelectValue(selectEl, opt.dataset.value);
+            selectEl.classList.remove('open');
+            if (onChange) onChange(opt.dataset.value);
+        });
+    });
+}
+
+// 點擊外部關閉所有下拉
+document.addEventListener('click', () => {
+    document.querySelectorAll('.custom-select.open').forEach(el => el.classList.remove('open'));
+});
+
+// 初始化靜態下拉
+initCustomSelect(closeActionSelect, saveConfig);
+initCustomSelect(minimizeActionSelect, saveConfig);
+
+// 初始化動態下拉（帳號、螢幕）— 只綁 trigger，options 在動態填入時綁定
+initCustomSelect(accountSelect);
+initCustomSelect(launcherMonitor);

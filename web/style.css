@@ -329,6 +329,101 @@ select option {
     color: var(--text-primary);
 }
 
+/* ========== 自訂下拉選單 ========== */
+
+.custom-select {
+    position: relative;
+    user-select: none;
+}
+
+.custom-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: hsl(var(--bg-input-h), var(--bg-input-s), var(--input-l));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    padding: 6px 12px;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.custom-select-trigger:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.custom-select.open .custom-select-trigger {
+    border-color: var(--primary);
+}
+
+.custom-select.open .custom-select-trigger svg {
+    transform: rotate(180deg);
+}
+
+.custom-select-trigger svg {
+    opacity: 0.5;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+.custom-select-options {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background-color: hsl(var(--bg-card-h), var(--bg-card-s), var(--card-l));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.custom-select.open .custom-select-options {
+    display: block;
+    animation: dropdownFadeIn 0.15s ease-out;
+    max-height: 180px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+
+@keyframes dropdownFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.custom-select-option {
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.custom-select-option:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.custom-select-option.selected {
+    color: var(--primary);
+}
+
+/* xs 尺寸變體 */
+.custom-select-xs .custom-select-trigger {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+}
+
+.custom-select-xs .custom-select-option {
+    padding: 5px 8px;
+    font-size: 0.75rem;
+}
+
 /* ========== 狀態動畫 ========== */
 
 .status-loading {
