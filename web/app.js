@@ -688,7 +688,7 @@ async function loadConfig() {
             monitors.forEach((m, i) => {
                 monitorItems.push({
                     value: i,
-                    label: `螢幕 ${i + 1} (${m.width}x${m.height}${m.primary ? ', 主螢幕' : ''})`,
+                    label: `螢幕 ${i + 1}${m.name ? ' ' + m.name : ''} (${m.width}x${m.height}${m.primary ? ', 主螢幕' : ''})`,
                 });
             });
             setCustomSelectOptions(launcherMonitor, monitorItems, saveConfig);

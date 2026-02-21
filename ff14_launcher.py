@@ -316,7 +316,8 @@ class LauncherAutomation:
 
     @staticmethod
     def get_monitors() -> list[dict]:
-        """取得所有螢幕資訊"""
+        """取得所有螢幕資訊（含型號名稱，從 EDID 解析）"""
+        import winreg
         monitors = []
 
         MONITORENUMPROC = ctypes.WINFUNCTYPE(
@@ -327,18 +328,105 @@ class LauncherAutomation:
             ctypes.POINTER(ctypes.c_int),
         )
 
-        class MONITORINFO(ctypes.Structure):
+        CCHDEVICENAME = 32
+
+        class MONITORINFOEX(ctypes.Structure):
             _fields_ = [
                 ('cbSize', wintypes.DWORD),
                 ('rcMonitor', wintypes.RECT),
                 ('rcWork', wintypes.RECT),
                 ('dwFlags', wintypes.DWORD),
+                ('szDevice', wintypes.WCHAR * CCHDEVICENAME),
             ]
 
+        class DISPLAY_DEVICE(ctypes.Structure):
+            _fields_ = [
+                ('cb', wintypes.DWORD),
+                ('DeviceName', wintypes.WCHAR * 32),
+                ('DeviceString', wintypes.WCHAR * 128),
+                ('StateFlags', wintypes.DWORD),
+                ('DeviceID', wintypes.WCHAR * 128),
+                ('DeviceKey', wintypes.WCHAR * 128),
+            ]
+
+        def parse_edid_name(edid: bytes) -> str:
+            """從 EDID 二進位資料解析螢幕型號（descriptor tag 0xFC）"""
+            for i in range(4):
+                offset = 54 + i * 18
+                if offset + 18 > len(edid):
+                    break
+                # 檢查 descriptor tag: 00 00 00 FC
+                if edid[offset:offset+4] == b'\x00\x00\x00\xfc':
+                    name_bytes = edid[offset+5:offset+18]
+                    name = name_bytes.split(b'\x0a')[0].decode('ascii', errors='ignore').strip()
+                    if name:
+                        return name
+            return ''
+
+        def build_edid_map() -> dict:
+            """從 registry 讀取所有螢幕的 EDID，建立 device_id → 型號 的對應"""
+            edid_map = {}
+            reg_path = r"SYSTEM\CurrentControlSet\Enum\DISPLAY"
+            try:
+                display_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)
+                i = 0
+                while True:
+                    try:
+                        monitor_id = winreg.EnumKey(display_key, i)
+                        i += 1
+                        monitor_key = winreg.OpenKey(display_key, monitor_id)
+                        j = 0
+                        while True:
+                            try:
+                                instance = winreg.EnumKey(monitor_key, j)
+                                j += 1
+                                try:
+                                    param_key = winreg.OpenKey(
+                                        monitor_key, f"{instance}\\Device Parameters"
+                                    )
+                                    edid, _ = winreg.QueryValueEx(param_key, "EDID")
+                                    winreg.CloseKey(param_key)
+                                    if edid:
+                                        name = parse_edid_name(bytes(edid))
+                                        if name:
+                                            full_id = f"MONITOR\\{monitor_id}\\{instance}"
+                                            edid_map[full_id.upper()] = name
+                                except (FileNotFoundError, OSError):
+                                    pass
+                            except OSError:
+                                break
+                        winreg.CloseKey(monitor_key)
+                    except OSError:
+                        break
+                winreg.CloseKey(display_key)
+            except OSError:
+                pass
+            return edid_map
+
+        edid_map = build_edid_map()
+
+        def get_monitor_name(device_name):
+            """透過 EnumDisplayDevices 取得 DeviceID，再從 EDID map 查型號"""
+            dd = DISPLAY_DEVICE()
+            dd.cb = ctypes.sizeof(DISPLAY_DEVICE)
+            if ctypes.windll.user32.EnumDisplayDevicesW(device_name, 0, ctypes.byref(dd), 0):
+                device_id = dd.DeviceID.strip().upper()
+                # DeviceID 格式: MONITOR\XXX\{GUID}，取前兩段比對
+                for key, name in edid_map.items():
+                    # registry key: MONITOR\XXX\instance
+                    # DeviceID:     MONITOR\XXX\{guid}
+                    # 比對 MONITOR\XXX 部分
+                    if key.split('\\')[1] == device_id.split('\\')[1]:
+                        return name
+            return ''
+
         def callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
-            info = MONITORINFO()
-            info.cbSize = ctypes.sizeof(MONITORINFO)
+            info = MONITORINFOEX()
+            info.cbSize = ctypes.sizeof(MONITORINFOEX)
             ctypes.windll.user32.GetMonitorInfoW(hMonitor, ctypes.byref(info))
+
+            name = get_monitor_name(info.szDevice)
+
             monitors.append({
                 'index': len(monitors),
                 'x': info.rcWork.left,
@@ -346,6 +434,7 @@ class LauncherAutomation:
                 'width': info.rcWork.right - info.rcWork.left,
                 'height': info.rcWork.bottom - info.rcWork.top,
                 'primary': bool(info.dwFlags & 1),
+                'name': name,
             })
             return True
 
