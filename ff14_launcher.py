@@ -943,19 +943,58 @@ class SystemTrayManager:
     def set_window(self, win):
         self._window = win
 
+    # 主題色對應表（與 CSS 同步）
+    THEME_COLORS = {
+        'tsuyukusa': {'primary': '#2EA9DF', 'primary_dark': '#1E7EAB', 'card_h': 210, 'card_s': 35, 'text': '#E0E6ED', 'text2': '#8899A6'},
+        'shu':       {'primary': '#F75C2F', 'primary_dark': '#C44A25', 'card_h': 15,  'card_s': 40, 'text': '#F5E6E0', 'text2': '#A08070'},
+        'koke':      {'primary': '#4B4E2A', 'primary_dark': '#3A3D20', 'card_h': 70,  'card_s': 20, 'text': '#E5E8D8', 'text2': '#8A8D70'},
+        'wakatake':  {'primary': '#A8D8B9', 'primary_dark': '#7BBF95', 'card_h': 145, 'card_s': 30, 'text': '#E0F0E8', 'text2': '#70A088'},
+        'fuji':      {'primary': '#8B81C3', 'primary_dark': '#6A5FA0', 'card_h': 250, 'card_s': 30, 'text': '#E8E6F0', 'text2': '#9088A0'},
+        'sakura':    {'primary': '#FEDFE1', 'primary_dark': '#F5B2B8', 'card_h': 355, 'card_s': 45, 'text': '#F5E8E8', 'text2': '#A08888'},
+        'gunjou':    {'primary': '#465DAA', 'primary_dark': '#354788', 'card_h': 225, 'card_s': 40, 'text': '#E0E4F0', 'text2': '#8090A8'},
+        'ukon':      {'primary': '#EFBB24', 'primary_dark': '#D4A520', 'card_h': 45,  'card_s': 40, 'text': '#F0EBE0', 'text2': '#A09878'},
+    }
+
+    @staticmethod
+    def _hsl_to_hex(h, s, l):
+        """HSL (h=0-360, s=0-100, l=0-100) → #RRGGBB"""
+        import colorsys
+        r, g, b = colorsys.hls_to_rgb(h / 360, l / 100, s / 100)
+        return f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
+
+    def _get_menu_colors(self):
+        """根據當前主題和亮度產生選單配色"""
+        theme_name = config.get("theme", "tsuyukusa")
+        brightness = config.get("brightness", 50)
+        t = self.THEME_COLORS.get(theme_name, self.THEME_COLORS['tsuyukusa'])
+        br = brightness / 100  # 0~1
+
+        bg_l = 6 + br * 89  # 同 CSS card-l
+        bg = self._hsl_to_hex(t['card_h'], t['card_s'], bg_l)
+        hover_l = min(bg_l + 8, 95)
+        hover_bg = self._hsl_to_hex(t['card_h'], t['card_s'], hover_l)
+        sep_l = min(bg_l + 4, 90)
+        sep_color = self._hsl_to_hex(t['card_h'], t['card_s'], sep_l)
+
+        return {
+            'bg': bg, 'fg': t['text'], 'hover_bg': hover_bg,
+            'hover_fg': '#FFFFFF', 'sep': sep_color, 'primary': t['primary'],
+        }
+
     def _show_custom_menu(self):
-        """顯示自訂櫻花奶茶風格右鍵選單（圓角 + hover 效果）"""
+        """顯示自訂右鍵選單（跟隨視窗主題配色）"""
         import tkinter as tk
 
         if not self._tk_root:
             self._tk_root = tk.Tk()
             self._tk_root.withdraw()
 
-        BG = '#FFE4E9'
-        FG = '#6B3A52'
-        HOVER_BG = '#FFB7C5'
-        HOVER_FG = '#FFFFFF'
-        SEP_COLOR = '#FFCDD6'
+        c = self._get_menu_colors()
+        BG = c['bg']
+        FG = c['fg']
+        HOVER_BG = c['hover_bg']
+        HOVER_FG = c['hover_fg']
+        SEP_COLOR = c['sep']
         FONT = ('Microsoft JhengHei UI', 11)
         RADIUS = 14
 
@@ -964,50 +1003,53 @@ class SystemTrayManager:
         popup.attributes('-topmost', True)
         popup.configure(bg=BG)
 
+        # 外層容器提供上下留白
+        container = tk.Frame(popup, bg=BG)
+        container.pack(fill='both', expand=True, padx=0, pady=6)
+
         items = [
-            ('  啟動遊戲', self._launch_game),
+            ('啟動遊戲', self._launch_game),
             None,
-            ('  開啟視窗', self._show_window),
+            ('開啟視窗', self._show_window),
             None,
-            ('  結束程式', self._quit),
+            ('結束程式', self._quit),
         ]
 
         for item in items:
             if item is None:
-                tk.Frame(popup, bg=SEP_COLOR, height=1).pack(fill='x', padx=12)
+                tk.Frame(container, bg=SEP_COLOR, height=1).pack(fill='x', padx=8, pady=2)
             else:
                 label_text, command = item
+                row = tk.Frame(container, bg=BG, cursor='hand2')
+                row.pack(fill='x')
                 lbl = tk.Label(
-                    popup, text=label_text, font=FONT,
-                    bg=BG, fg=FG, anchor='w',
-                    padx=16, pady=8, cursor='hand2',
+                    row, text=label_text, font=FONT,
+                    bg=BG, fg=FG, anchor='center',
+                    padx=24, pady=8,
                 )
-                lbl.pack(fill='x')
+                lbl.pack(fill='both', expand=True)
 
-                def make_handlers(widget, cmd):
+                def make_handlers(frame, label, cmd):
                     def on_enter(e):
-                        widget.configure(bg=HOVER_BG, fg=HOVER_FG)
+                        frame.configure(bg=HOVER_BG)
+                        label.configure(bg=HOVER_BG, fg=HOVER_FG)
                     def on_leave(e):
-                        widget.configure(bg=BG, fg=FG)
+                        frame.configure(bg=BG)
+                        label.configure(bg=BG, fg=FG)
                     def on_click(e):
                         popup.destroy()
                         cmd()
                     return on_enter, on_leave, on_click
 
-                enter, leave, click = make_handlers(lbl, command)
-                lbl.bind('<Enter>', enter)
-                lbl.bind('<Leave>', leave)
+                enter, leave, click = make_handlers(row, lbl, command)
+                row.bind('<Enter>', enter)
+                row.bind('<Leave>', leave)
+                row.bind('<Button-1>', click)
                 lbl.bind('<Button-1>', click)
 
         # 取得游標位置（在 update 之前先抓，避免延遲）
         pt = wintypes.POINT()
         ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
-
-        # 上下留白讓圓角不切到文字
-        pad_frame = tk.Frame(popup, bg=BG, height=4)
-        pad_frame.pack(side='bottom', fill='x')
-        pad_top = tk.Frame(popup, bg=BG, height=4)
-        pad_top.pack(side='top', fill='x', before=popup.winfo_children()[0])
 
         popup.update_idletasks()
         w = popup.winfo_width()
