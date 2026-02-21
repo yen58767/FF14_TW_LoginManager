@@ -741,6 +741,18 @@ $shortcut.TargetPath
     return lnk_path
 
 
+class WINDOWPLACEMENT(ctypes.Structure):
+    """Windows API WINDOWPLACEMENT 結構"""
+    _fields_ = [
+        ("length", wintypes.UINT),
+        ("flags", wintypes.UINT),
+        ("showCmd", wintypes.UINT),
+        ("ptMinPosition", wintypes.POINT),
+        ("ptMaxPosition", wintypes.POINT),
+        ("rcNormalPosition", wintypes.RECT),
+    ]
+
+
 def copy_to_clipboard(text):
     """複製文字到剪貼簿 (Windows API)"""
     CF_UNICODETEXT = 13
@@ -765,6 +777,7 @@ class SystemTrayManager:
         self.icon_path = icon_path
         self.tray_icon = None
         self._window = None
+        self._placement = None  # WINDOWPLACEMENT 結構，儲存最小化前的完整視窗狀態
 
     def set_window(self, win):
         self._window = win
@@ -813,10 +826,34 @@ class SystemTrayManager:
                 thread = threading.Thread(target=run, daemon=True)
                 thread.start()
 
+    def save_placement(self):
+        """用 GetWindowPlacement 儲存視窗的正常位置（即使已最小化也能取得）"""
+        user32 = ctypes.windll.user32
+        hwnd = user32.FindWindowW(None, "FF14 Login Manager")
+        if hwnd:
+            placement = WINDOWPLACEMENT()
+            placement.length = ctypes.sizeof(WINDOWPLACEMENT)
+            if user32.GetWindowPlacement(hwnd, ctypes.byref(placement)):
+                self._placement = placement
+
     def _show_window(self, *args):
-        """顯示完整視窗（位置已在 hide 前保留）"""
-        if self._window:
+        """用 SetWindowPlacement 一步還原視窗到原位，不抖動，並強制置頂"""
+        user32 = ctypes.windll.user32
+        hwnd = user32.FindWindowW(None, "FF14 Login Manager")
+        if hwnd and self._placement:
+            self._placement.showCmd = 1  # SW_SHOWNORMAL
+            user32.SetWindowPlacement(hwnd, ctypes.byref(self._placement))
+            # 先設 TOPMOST 強制拉到最前，再取消 TOPMOST 恢復正常
+            HWND_TOPMOST = -1
+            HWND_NOTOPMOST = -2
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+            user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+            user32.SetForegroundWindow(hwnd)
+        elif self._window:
             self._window.show()
+            self._window.restore()
 
     def _quit(self, *args):
         """結束程式"""
@@ -1226,9 +1263,9 @@ def main():
     # 註冊關閉事件
     window.events.closing += on_closing
 
-    # 最小化時：先還原視窗（保留正確座標），再隱藏到系統匣
+    # 最小化時：用 GetWindowPlacement 記住原位，再隱藏到系統匣
     def on_minimized():
-        window.restore()
+        tray_manager.save_placement()
         window.hide()
 
     window.events.minimized += on_minimized
