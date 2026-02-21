@@ -1,5 +1,9 @@
 {
   "version": "1.0.5",
   "download_url": "https://github.com/yen58767/FF14_TW_LoginManager/releases",
-  "changelog": "-支援啟動器捷徑\n-新增恢復視窗位置\n-修改顏色排版位置"
+  "changelog": "-祝大家新年快樂~ \n
+1.新增指定螢幕啟動FF14登入器 \n
+2.新增視窗行為，可自訂關閉以及最小化按鈕的操作 \n
+3.新增自動進入選角(僅模擬確認選項) \n
+  另外看了一些可愛的貓咪影片"
 }
