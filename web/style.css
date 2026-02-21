@@ -182,6 +182,18 @@ body.light-mode .text-black-500 {
     color: #2d2d30 !important;
 }
 
+body.light-mode input,
+body.light-mode select,
+body.light-mode textarea {
+    color: #1a1a2e !important;
+}
+
+body.light-mode input::placeholder,
+body.light-mode select::placeholder,
+body.light-mode textarea::placeholder {
+    color: #3c3c42 !important;
+}
+
 .title-text {
     color: var(--primary);
 }

@@ -31,6 +31,8 @@ except Exception:
 
 import webview
 import pyotp
+import pystray
+from PIL import Image as PILImage
 
 # Windows UI Automation
 import comtypes.client
@@ -639,6 +641,7 @@ class LauncherAutomation:
 config = ConfigManager()
 automation = LauncherAutomation(config)
 window = None
+tray_manager = None
 
 
 def resolve_shortcut(lnk_path: str) -> str:
@@ -736,6 +739,145 @@ $shortcut.TargetPath
         return target_path
 
     return lnk_path
+
+
+def copy_to_clipboard(text):
+    """複製文字到剪貼簿 (Windows API)"""
+    CF_UNICODETEXT = 13
+    GMEM_MOVEABLE = 0x0002
+    try:
+        ctypes.windll.user32.OpenClipboard(0)
+        ctypes.windll.user32.EmptyClipboard()
+        data = text.encode('utf-16-le') + b'\x00\x00'
+        hMem = ctypes.windll.kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+        pMem = ctypes.windll.kernel32.GlobalLock(hMem)
+        ctypes.memmove(pMem, data, len(data))
+        ctypes.windll.kernel32.GlobalUnlock(hMem)
+        ctypes.windll.user32.SetClipboardData(CF_UNICODETEXT, hMem)
+    finally:
+        ctypes.windll.user32.CloseClipboard()
+
+
+class SystemTrayManager:
+    """系統匣圖示管理"""
+
+    def __init__(self, icon_path):
+        self.icon_path = icon_path
+        self.tray_icon = None
+        self._window = None
+
+    def set_window(self, win):
+        self._window = win
+
+    def _get_otp_info(self):
+        """取得當前選擇帳號的 OTP 和剩餘秒數"""
+        accounts = config.get("accounts", [])
+        selected = config.get("selected_account", -1)
+        if isinstance(selected, int) and 0 <= selected < len(accounts):
+            secret_key = accounts[selected].get("secret_key", "")
+            if secret_key:
+                try:
+                    secret = secret_key.strip().replace(" ", "")
+                    totp = pyotp.TOTP(secret)
+                    otp = totp.now()
+                    remaining = totp.interval - (int(time.time()) % totp.interval)
+                    return otp, remaining
+                except Exception:
+                    pass
+        return None, None
+
+    def _copy_otp(self, *args):
+        """複製 OTP 到剪貼簿"""
+        otp, _ = self._get_otp_info()
+        if otp:
+            copy_to_clipboard(otp)
+
+    def _launch_game(self, *args):
+        """從系統匣啟動遊戲（完整自動化流程）"""
+        accounts = config.get("accounts", [])
+        selected = config.get("selected_account", -1)
+
+        if isinstance(selected, int) and 0 <= selected < len(accounts):
+            account = accounts[selected]
+            secret_key = account.get("secret_key", "")
+            email = account.get("email", "")
+            password = account.get("password", "")
+
+            if secret_key:
+                def run():
+                    automation.run_automation(
+                        secret_key, email, password,
+                        lambda msg: None
+                    )
+
+                thread = threading.Thread(target=run, daemon=True)
+                thread.start()
+
+    def _show_window(self, *args):
+        """顯示完整視窗（位置已在 hide 前保留）"""
+        if self._window:
+            self._window.show()
+
+    def _quit(self, *args):
+        """結束程式"""
+        save_window_position()
+        if self.tray_icon:
+            self.tray_icon.stop()
+        if self._window:
+            self._window.destroy()
+
+    def _build_menu(self):
+        """建立右鍵選單（每次開啟時動態產生文字）"""
+
+        def otp_text(item):
+            otp, remaining = self._get_otp_info()
+            if otp:
+                return f"OTP: {otp[:3]} {otp[3:]}"
+            return "OTP: ------"
+
+        def remaining_text(item):
+            _, remaining = self._get_otp_info()
+            if remaining is not None:
+                return f"剩餘 {remaining} 秒"
+            return "---"
+
+        def has_otp(item):
+            otp, _ = self._get_otp_info()
+            return otp is not None
+
+        return pystray.Menu(
+            pystray.MenuItem(otp_text, self._copy_otp, enabled=has_otp),
+            pystray.MenuItem(remaining_text, self._copy_otp, enabled=has_otp),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("啟動遊戲", self._launch_game),
+            pystray.MenuItem("複製 OTP", self._copy_otp, enabled=has_otp),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("開啟完整視窗", self._show_window, default=True),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("結束程式", self._quit),
+        )
+
+    def start(self):
+        """啟動系統匣圖示"""
+        try:
+            image = PILImage.open(self.icon_path)
+        except Exception:
+            image = PILImage.new('RGB', (64, 64), color=(70, 130, 180))
+
+        self.tray_icon = pystray.Icon(
+            "FF14LoginManager",
+            image,
+            "FF14 Login Manager",
+            menu=self._build_menu()
+        )
+
+        tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
+        tray_thread.start()
+
+    def stop(self):
+        """停止系統匣圖示"""
+        if self.tray_icon:
+            self.tray_icon.stop()
 
 
 class Api:
@@ -976,8 +1118,10 @@ def save_window_position():
 
 
 def on_closing():
-    """視窗關閉時儲存位置"""
+    """視窗關閉時儲存位置並清理系統匣"""
     save_window_position()
+    if tray_manager:
+        tray_manager.stop()
 
 
 def check_for_updates():
@@ -1043,8 +1187,7 @@ def set_window_icon(icon_path):
 
 
 def main():
-    global window
-
+    global window, tray_manager
 
     # 取得腳本所在目錄
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1054,6 +1197,9 @@ def main():
 
     # 建立 API 實例
     api = Api()
+
+    # 建立系統匣管理器
+    tray_manager = SystemTrayManager(icon_path)
 
     # 讀取已儲存的視窗位置
     saved_x = config.get("window_x")
@@ -1075,14 +1221,23 @@ def main():
         window_params["y"] = saved_y
 
     window = webview.create_window(**window_params)
+    tray_manager.set_window(window)
 
     # 註冊關閉事件
     window.events.closing += on_closing
 
-    # 視窗顯示後設定圖示
+    # 最小化時：先還原視窗（保留正確座標），再隱藏到系統匣
+    def on_minimized():
+        window.restore()
+        window.hide()
+
+    window.events.minimized += on_minimized
+
+    # 視窗顯示後設定圖示並啟動系統匣
     def on_shown():
         time.sleep(0.1)  # 等待視窗完全顯示
         set_window_icon(icon_path)
+        tray_manager.start()
 
     window.events.shown += on_shown
 
