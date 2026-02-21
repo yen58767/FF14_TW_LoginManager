@@ -816,6 +816,7 @@ config = ConfigManager()
 automation = LauncherAutomation(config)
 window = None
 tray_manager = None
+_force_quit = False
 
 
 def resolve_shortcut(lnk_path: str) -> str:
@@ -927,23 +928,6 @@ class WINDOWPLACEMENT(ctypes.Structure):
     ]
 
 
-def copy_to_clipboard(text):
-    """複製文字到剪貼簿 (Windows API)"""
-    CF_UNICODETEXT = 13
-    GMEM_MOVEABLE = 0x0002
-    try:
-        ctypes.windll.user32.OpenClipboard(0)
-        ctypes.windll.user32.EmptyClipboard()
-        data = text.encode('utf-16-le') + b'\x00\x00'
-        hMem = ctypes.windll.kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
-        pMem = ctypes.windll.kernel32.GlobalLock(hMem)
-        ctypes.memmove(pMem, data, len(data))
-        ctypes.windll.kernel32.GlobalUnlock(hMem)
-        ctypes.windll.user32.SetClipboardData(CF_UNICODETEXT, hMem)
-    finally:
-        ctypes.windll.user32.CloseClipboard()
-
-
 class SystemTrayManager:
     """系統匣圖示管理"""
 
@@ -951,33 +935,113 @@ class SystemTrayManager:
         self.icon_path = icon_path
         self.tray_icon = None
         self._window = None
-        self._placement = None  # WINDOWPLACEMENT 結構，儲存最小化前的完整視窗狀態
+        self._placement = None
+        self._tk_root = None
 
     def set_window(self, win):
         self._window = win
 
-    def _get_otp_info(self):
-        """取得當前選擇帳號的 OTP 和剩餘秒數"""
-        accounts = config.get("accounts", [])
-        selected = config.get("selected_account", -1)
-        if isinstance(selected, int) and 0 <= selected < len(accounts):
-            secret_key = accounts[selected].get("secret_key", "")
-            if secret_key:
-                try:
-                    secret = secret_key.strip().replace(" ", "")
-                    totp = pyotp.TOTP(secret)
-                    otp = totp.now()
-                    remaining = totp.interval - (int(time.time()) % totp.interval)
-                    return otp, remaining
-                except Exception:
-                    pass
-        return None, None
+    def _show_custom_menu(self):
+        """顯示自訂櫻花奶茶風格右鍵選單（圓角 + hover 效果）"""
+        import tkinter as tk
 
-    def _copy_otp(self, *args):
-        """複製 OTP 到剪貼簿"""
-        otp, _ = self._get_otp_info()
-        if otp:
-            copy_to_clipboard(otp)
+        if not self._tk_root:
+            self._tk_root = tk.Tk()
+            self._tk_root.withdraw()
+
+        BG = '#FFE4E9'
+        FG = '#6B3A52'
+        HOVER_BG = '#FFB7C5'
+        HOVER_FG = '#FFFFFF'
+        SEP_COLOR = '#FFCDD6'
+        FONT = ('Microsoft JhengHei UI', 11)
+        RADIUS = 14
+
+        popup = tk.Toplevel(self._tk_root)
+        popup.overrideredirect(True)
+        popup.attributes('-topmost', True)
+        popup.configure(bg=BG)
+
+        items = [
+            ('  啟動遊戲', self._launch_game),
+            None,
+            ('  開啟視窗', self._show_window),
+            None,
+            ('  結束程式', self._quit),
+        ]
+
+        for item in items:
+            if item is None:
+                tk.Frame(popup, bg=SEP_COLOR, height=1).pack(fill='x', padx=12)
+            else:
+                label_text, command = item
+                lbl = tk.Label(
+                    popup, text=label_text, font=FONT,
+                    bg=BG, fg=FG, anchor='w',
+                    padx=16, pady=8, cursor='hand2',
+                )
+                lbl.pack(fill='x')
+
+                def make_handlers(widget, cmd):
+                    def on_enter(e):
+                        widget.configure(bg=HOVER_BG, fg=HOVER_FG)
+                    def on_leave(e):
+                        widget.configure(bg=BG, fg=FG)
+                    def on_click(e):
+                        popup.destroy()
+                        cmd()
+                    return on_enter, on_leave, on_click
+
+                enter, leave, click = make_handlers(lbl, command)
+                lbl.bind('<Enter>', enter)
+                lbl.bind('<Leave>', leave)
+                lbl.bind('<Button-1>', click)
+
+        # 取得游標位置（在 update 之前先抓，避免延遲）
+        pt = wintypes.POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+
+        # 上下留白讓圓角不切到文字
+        pad_frame = tk.Frame(popup, bg=BG, height=4)
+        pad_frame.pack(side='bottom', fill='x')
+        pad_top = tk.Frame(popup, bg=BG, height=4)
+        pad_top.pack(side='top', fill='x', before=popup.winfo_children()[0])
+
+        popup.update_idletasks()
+        w = popup.winfo_width()
+        h = popup.winfo_height()
+
+        # 定位在游標上方
+        x = pt.x - w // 2
+        y = pt.y - h - 4
+
+        # 確保不超出螢幕
+        screen_w = ctypes.windll.user32.GetSystemMetrics(0)
+        screen_h = ctypes.windll.user32.GetSystemMetrics(1)
+        if x < 0:
+            x = 0
+        if x + w > screen_w:
+            x = screen_w - w
+        if y < 0:
+            y = pt.y + 10
+
+        popup.geometry(f'+{x}+{y}')
+        popup.update()
+
+        # 圓角 — frame() 回傳真正的 OS 視窗 HWND
+        try:
+            hwnd = int(popup.frame(), 16)
+            rgn = ctypes.windll.gdi32.CreateRoundRectRgn(
+                0, 0, w + 1, h + 1, RADIUS, RADIUS
+            )
+            ctypes.windll.user32.SetWindowRgn(hwnd, rgn, True)
+        except Exception:
+            pass
+
+        # 點擊外部關閉
+        popup.bind('<FocusOut>', lambda e: popup.destroy())
+        popup.focus_force()
+        popup.wait_window(popup)
 
     def _launch_game(self, *args):
         """從系統匣啟動遊戲（完整自動化流程）"""
@@ -1017,7 +1081,6 @@ class SystemTrayManager:
         if hwnd and self._placement:
             self._placement.showCmd = 1  # SW_SHOWNORMAL
             user32.SetWindowPlacement(hwnd, ctypes.byref(self._placement))
-            # 先設 TOPMOST 強制拉到最前，再取消 TOPMOST 恢復正常
             HWND_TOPMOST = -1
             HWND_NOTOPMOST = -2
             SWP_NOMOVE = 0x0002
@@ -1031,42 +1094,18 @@ class SystemTrayManager:
 
     def _quit(self, *args):
         """結束程式"""
+        global _force_quit
+        _force_quit = True
         save_window_position()
+        if self._tk_root:
+            try:
+                self._tk_root.destroy()
+            except Exception:
+                pass
         if self.tray_icon:
             self.tray_icon.stop()
         if self._window:
             self._window.destroy()
-
-    def _build_menu(self):
-        """建立右鍵選單（每次開啟時動態產生文字）"""
-
-        def otp_text(item):
-            otp, remaining = self._get_otp_info()
-            if otp:
-                return f"OTP: {otp[:3]} {otp[3:]}"
-            return "OTP: ------"
-
-        def remaining_text(item):
-            _, remaining = self._get_otp_info()
-            if remaining is not None:
-                return f"剩餘 {remaining} 秒"
-            return "---"
-
-        def has_otp(item):
-            otp, _ = self._get_otp_info()
-            return otp is not None
-
-        return pystray.Menu(
-            pystray.MenuItem(otp_text, self._copy_otp, enabled=has_otp),
-            pystray.MenuItem(remaining_text, self._copy_otp, enabled=has_otp),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("啟動遊戲", self._launch_game),
-            pystray.MenuItem("複製 OTP", self._copy_otp, enabled=has_otp),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("開啟完整視窗", self._show_window, default=True),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("結束程式", self._quit),
-        )
 
     def start(self):
         """啟動系統匣圖示"""
@@ -1079,8 +1118,32 @@ class SystemTrayManager:
             "FF14LoginManager",
             image,
             "FF14 Login Manager",
-            menu=self._build_menu()
+            menu=pystray.Menu(
+                pystray.MenuItem("啟動遊戲", self._launch_game),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("開啟視窗", self._show_window, default=True),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("結束程式", self._quit),
+            )
         )
+
+        # 替換原生右鍵選單為自訂櫻花奶茶選單
+        WM_LBUTTONUP = 514
+        WM_RBUTTONUP = 517
+        WM_NOTIFY = 1035  # pystray 自訂的 notification message
+        original_on_notify = self.tray_icon._message_handlers[WM_NOTIFY]
+        tray_mgr = self
+
+        def patched_on_notify(wparam, lparam):
+            if lparam == WM_RBUTTONUP:
+                tray_mgr._show_custom_menu()
+                return
+            if lparam == WM_LBUTTONUP:
+                tray_mgr._show_window()
+                return
+            return original_on_notify(wparam, lparam)
+
+        self.tray_icon._message_handlers[WM_NOTIFY] = patched_on_notify
 
         tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
         tray_thread.start()
@@ -1232,9 +1295,10 @@ class Api:
         return {"success": True, "message": "已停止"}
 
     def minimize_to_tray(self):
-        """最小化到系統匣"""
-        if window:
-            window.minimize()
+        """隱藏到系統匣"""
+        if window and tray_manager:
+            tray_manager.save_placement()
+            window.hide()
         return {"success": True}
 
     def check_update(self):
@@ -1339,10 +1403,16 @@ def save_window_position():
 
 
 def on_closing():
-    """視窗關閉時儲存位置並清理系統匣"""
+    """按 X 時隱藏到系統匣；結束程式時真正關閉"""
+    if _force_quit:
+        save_window_position()
+        if tray_manager:
+            tray_manager.stop()
+        return True
     save_window_position()
-    if tray_manager:
-        tray_manager.stop()
+    tray_manager.save_placement()
+    window.hide()
+    return False
 
 
 def check_for_updates():
@@ -1447,12 +1517,7 @@ def main():
     # 註冊關閉事件
     window.events.closing += on_closing
 
-    # 最小化時：用 GetWindowPlacement 記住原位，再隱藏到系統匣
-    def on_minimized():
-        tray_manager.save_placement()
-        window.hide()
-
-    window.events.minimized += on_minimized
+    # 最小化時：正常縮到工作列，不隱藏
 
     # 視窗顯示後設定圖示並啟動系統匣
     def on_shown():
