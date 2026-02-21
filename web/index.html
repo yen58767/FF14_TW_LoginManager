@@ -178,6 +178,12 @@
                         瀏覽
                     </button>
                 </div>
+                <div class="flex items-center gap-2 mt-2">
+                    <span class="text-xs text-black-400">啟動螢幕：</span>
+                    <select id="launcherMonitor" class="flex-1 input-bg border border-white/10 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-current transition-colors">
+                        <option value="-1">不指定</option>
+                    </select>
+                </div>
             </div>
 
             <!-- 自動化選項 -->
@@ -247,6 +253,17 @@
 
             <!-- Tab 內容：其他 -->
             <div id="tabContentOther" class="tab-content hidden">
+                <!-- 啟動後最小化 -->
+                <div class="mb-4">
+                    <div class="text-sm text-black-400 mb-2">視窗行為</div>
+                    <div class="input-bg rounded-lg p-3">
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <input type="checkbox" id="minimizeAfterLaunch" class="checkbox-custom">
+                            <span class="text-sm group-hover:text-white transition-colors">啟動後自動最小化到系統匣</span>
+                        </label>
+                    </div>
+                </div>
+
                 <!-- 重置視窗位置快捷鍵 -->
                 <div class="mb-4">
                     <div class="text-sm text-black-400 transition-colors mb-2">重置視窗位置</div>

@@ -210,6 +210,8 @@ class ConfigManager:
             "character_select_delay": 20,
             "character_select_press_count": 6,
             "character_select_interval": 5,
+            "launcher_monitor": -1,
+            "minimize_after_launch": False,
             "window_x": None,
             "window_y": None,
             "encryption_enabled": True  # 標記是否啟用加密
@@ -309,6 +311,75 @@ class LauncherAutomation:
     def stop(self):
         """停止自動化流程"""
         self._stop_flag = True
+
+    @staticmethod
+    def get_monitors() -> list[dict]:
+        """取得所有螢幕資訊"""
+        monitors = []
+
+        MONITORENUMPROC = ctypes.WINFUNCTYPE(
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(wintypes.RECT),
+            ctypes.POINTER(ctypes.c_int),
+        )
+
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [
+                ('cbSize', wintypes.DWORD),
+                ('rcMonitor', wintypes.RECT),
+                ('rcWork', wintypes.RECT),
+                ('dwFlags', wintypes.DWORD),
+            ]
+
+        def callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
+            info = MONITORINFO()
+            info.cbSize = ctypes.sizeof(MONITORINFO)
+            ctypes.windll.user32.GetMonitorInfoW(hMonitor, ctypes.byref(info))
+            monitors.append({
+                'index': len(monitors),
+                'x': info.rcWork.left,
+                'y': info.rcWork.top,
+                'width': info.rcWork.right - info.rcWork.left,
+                'height': info.rcWork.bottom - info.rcWork.top,
+                'primary': bool(info.dwFlags & 1),
+            })
+            return True
+
+        ctypes.windll.user32.EnumDisplayMonitors(
+            None, None, MONITORENUMPROC(callback), 0
+        )
+        return monitors
+
+    @staticmethod
+    def move_window_to_monitor(launcher_element, monitor_index: int):
+        """將 Launcher 視窗移到指定螢幕中央"""
+        monitors = LauncherAutomation.get_monitors()
+        if monitor_index < 0 or monitor_index >= len(monitors):
+            return
+
+        m = monitors[monitor_index]
+        try:
+            hwnd = launcher_element.CurrentNativeWindowHandle
+            if not hwnd:
+                return
+
+            # 取得視窗目前大小
+            rect = wintypes.RECT()
+            ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+            win_w = rect.right - rect.left
+            win_h = rect.bottom - rect.top
+
+            # 計算螢幕中央位置
+            x = m['x'] + (m['width'] - win_w) // 2
+            y = m['y'] + (m['height'] - win_h) // 2
+
+            SWP_NOSIZE = 0x0001
+            SWP_NOZORDER = 0x0004
+            ctypes.windll.user32.SetWindowPos(hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER)
+        except Exception as e:
+            print(f"移動視窗失敗: {e}")
 
     def find_window_by_keywords(self, root, keywords: list[str]):
         """模糊搜尋視窗"""
@@ -662,6 +733,13 @@ class LauncherAutomation:
             if not success:
                 return False, msg
             status_callback(msg)
+
+            # 移動到指定螢幕
+            monitor_index = self.config.get("launcher_monitor", -1)
+            if monitor_index >= 0:
+                status_callback("正在移動視窗到指定螢幕...")
+                self.move_window_to_monitor(launcher, monitor_index)
+                time.sleep(0.5)
 
             # 步驟 2.5: 輸入帳號密碼
             login_found = False
@@ -1020,6 +1098,10 @@ class Api:
         """取得設定"""
         return config.get_all()
 
+    def get_monitors(self):
+        """取得所有螢幕資訊"""
+        return LauncherAutomation.get_monitors()
+
     def save_config(self, data: dict):
         """儲存設定"""
         config.update(data)
@@ -1148,6 +1230,12 @@ class Api:
         """停止自動化流程"""
         automation.stop()
         return {"success": True, "message": "已停止"}
+
+    def minimize_to_tray(self):
+        """最小化到系統匣"""
+        if window:
+            window.minimize()
+        return {"success": True}
 
     def check_update(self):
         """檢查更新"""

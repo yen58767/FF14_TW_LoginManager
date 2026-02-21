@@ -1,6 +1,7 @@
 // DOM Elements
 const launcherPathInput = document.getElementById('launcherPath');
 const browseBtn = document.getElementById('browseBtn');
+const launcherMonitor = document.getElementById('launcherMonitor');
 const accountSelect = document.getElementById('accountSelect');
 const addAccountBtn = document.getElementById('addAccountBtn');
 const deleteAccountBtn = document.getElementById('deleteAccountBtn');
@@ -39,6 +40,7 @@ const tabAutomation = document.getElementById('tabAutomation');
 const tabOther = document.getElementById('tabOther');
 const tabContentAutomation = document.getElementById('tabContentAutomation');
 const tabContentOther = document.getElementById('tabContentOther');
+const minimizeAfterLaunch = document.getElementById('minimizeAfterLaunch');
 const enableResetHotkey = document.getElementById('enableResetHotkey');
 const hotkeyInput = document.getElementById('hotkeyInput');
 // Dialogs
@@ -677,11 +679,28 @@ async function loadConfig() {
 
         const config = await window.pywebview.api.get_config();
 
+        // 載入螢幕列表
+        try {
+            const monitors = await window.pywebview.api.get_monitors();
+            launcherMonitor.innerHTML = '<option value="-1">不指定</option>';
+            monitors.forEach((m, i) => {
+                const label = `螢幕 ${i + 1} (${m.width}x${m.height}${m.primary ? ', 主螢幕' : ''})`;
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = label;
+                launcherMonitor.appendChild(opt);
+            });
+        } catch (e) {
+            console.error('載入螢幕列表失敗:', e);
+        }
+
         launcherPathInput.value = config.launcher_path || '';
         accounts = config.accounts || [];
         selectedAccountIndex = config.selected_account ?? -1;
         currentTheme = config.theme || 'tsuyukusa';
         brightness = config.brightness ?? 50;
+
+        launcherMonitor.value = config.launcher_monitor ?? -1;
 
         autoCheckUpdate.checked = config.auto_check_update !== false;
         autoLaunch.checked = config.auto_launch !== false;
@@ -695,6 +714,7 @@ async function loadConfig() {
         charSelectDelay.value = config.character_select_delay ?? 20;
         charSelectPressCount.value = config.character_select_press_count ?? 6;
         charSelectInterval.value = config.character_select_interval ?? 5;
+        minimizeAfterLaunch.checked = config.minimize_after_launch === true;
 
         refreshAccountList();
         loadSelectedAccount();
@@ -707,6 +727,7 @@ async function saveConfig() {
     try {
         await window.pywebview.api.save_config({
             launcher_path: launcherPathInput.value,
+            launcher_monitor: parseInt(launcherMonitor.value),
             accounts: accounts,
             selected_account: selectedAccountIndex,
             theme: currentTheme,
@@ -722,7 +743,8 @@ async function saveConfig() {
             character_select_key_vk: currentCharSelectVk,
             character_select_delay: parseInt(charSelectDelay.value) || 20,
             character_select_press_count: parseInt(charSelectPressCount.value) || 6,
-            character_select_interval: parseInt(charSelectInterval.value) || 5
+            character_select_interval: parseInt(charSelectInterval.value) || 5,
+            minimize_after_launch: minimizeAfterLaunch.checked
         });
     } catch (error) {
         console.error('Failed to save config:', error);
@@ -913,6 +935,7 @@ toggleKeyBtn.addEventListener('click', () => {
 });
 
 // 自動化選項變更
+launcherMonitor.addEventListener('change', saveConfig);
 autoCheckUpdate.addEventListener('change', saveConfig);
 autoLaunch.addEventListener('change', saveConfig);
 autoInputCredentials.addEventListener('change', saveConfig);
@@ -1047,6 +1070,12 @@ function resetToReady() {
 
 function automationComplete(success, message) {
     updateStatus(success ? '完成' : '失敗: ' + message);
+
+    // 啟動成功且開啟了自動最小化
+    if (success && minimizeAfterLaunch.checked) {
+        window.pywebview.api.minimize_to_tray();
+    }
+
     // 5秒後恢復原狀
     setTimeout(() => {
         resetToReady();
@@ -1188,6 +1217,7 @@ document.addEventListener('keydown', async (e) => {
 
 // 啟用/停用快捷鍵變更時儲存
 enableResetHotkey.addEventListener('change', saveHotkeyConfig);
+minimizeAfterLaunch.addEventListener('change', saveConfig);
 
 // 頁面載入時載入快捷鍵設定
 loadHotkeyConfig();
