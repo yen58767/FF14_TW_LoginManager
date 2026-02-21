@@ -211,6 +211,34 @@
                         <input type="checkbox" id="autoClickPlay" class="checkbox-custom" checked>
                         <span class="text-sm group-hover:text-white transition-colors">自動點擊 PLAY</span>
                     </label>
+
+                    <!-- 自動進入角色 -->
+                    <div class="flex items-center gap-1">
+                        <label class="flex items-center gap-2 cursor-pointer group flex-1">
+                            <input type="checkbox" id="autoSelectCharacter" class="checkbox-custom">
+                            <span class="text-sm group-hover:text-white transition-colors">自動進入角色</span>
+                        </label>
+                        <button id="charSelectInfoBtn" class="w-5 h-5 rounded-full bg-yellow-500 text-black text-xs font-bold flex items-center justify-center hover:bg-yellow-400">!</button>
+                    </div>
+                    <div class="ml-6 space-y-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-black-400">模擬按鍵：</span>
+                            <button id="charSelectKeyInput" class="input-bg border border-white/10 rounded-lg px-4 py-1 text-xs min-w-[80px] hover:border-white/30 transition-colors">Numpad0</button>
+                            <span class="text-xs text-black-500">點擊後按下新按鍵</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-black-400">等待載入：</span>
+                            <input type="number" id="charSelectDelay" class="input-bg border border-white/10 rounded-lg px-2 py-1 text-xs w-14 text-center" value="20" min="0" max="300">
+                            <span class="text-xs text-black-500">秒</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-black-400">按鍵次數：</span>
+                            <input type="number" id="charSelectPressCount" class="input-bg border border-white/10 rounded-lg px-2 py-1 text-xs w-14 text-center" value="6" min="1" max="20">
+                            <span class="text-xs text-black-400 ml-2">間隔：</span>
+                            <input type="number" id="charSelectInterval" class="input-bg border border-white/10 rounded-lg px-2 py-1 text-xs w-14 text-center" value="5" min="1" max="30">
+                            <span class="text-xs text-black-500">秒</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -326,6 +354,17 @@
                 <button id="credentialsDialogClose" class="text-black-400 hover:text-white text-xl">&times;</button>
             </div>
             <div class="text-sm text-gray-300">內建登入器已可記錄一組帳號密碼，可自行決定是否需要使用此功能。</div>
+        </div>
+    </dialog>
+
+    <!-- 自動進入角色提示 Dialog -->
+    <dialog id="charSelectInfoDialog" class="dialog-base rounded-xl p-0 max-w-sm w-full">
+        <div class="card-bg p-4 rounded-xl">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold title-text">提示</h3>
+                <button id="charSelectInfoDialogClose" class="text-black-400 hover:text-white text-xl">&times;</button>
+            </div>
+            <div class="text-sm text-gray-300">這是進入預設伺服器的第一個腳色 <br> 模擬數字鍵盤 0 的輸入 <br> 若有更改「系統＞確定操作的鍵位設定」請務必記得修改。</div>
         </div>
     </dialog>
 

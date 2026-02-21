@@ -22,6 +22,11 @@ const credentialsInfoBtn = document.getElementById('credentialsInfoBtn');
 const autoInputOtp = document.getElementById('autoInputOtp');
 const autoPressEnter = document.getElementById('autoPressEnter');
 const autoClickPlay = document.getElementById('autoClickPlay');
+const autoSelectCharacter = document.getElementById('autoSelectCharacter');
+const charSelectKeyInput = document.getElementById('charSelectKeyInput');
+const charSelectDelay = document.getElementById('charSelectDelay');
+const charSelectPressCount = document.getElementById('charSelectPressCount');
+const charSelectInterval = document.getElementById('charSelectInterval');
 const startBtn = document.getElementById('startBtn');
 const infoBtn = document.getElementById('infoBtn');
 const themeOptions = document.querySelectorAll('.theme-option');
@@ -56,6 +61,10 @@ const configPathDisplay = document.getElementById('configPathDisplay');
 
 const credentialsDialog = document.getElementById('credentialsDialog');
 const credentialsDialogClose = document.getElementById('credentialsDialogClose');
+
+const charSelectInfoBtn = document.getElementById('charSelectInfoBtn');
+const charSelectInfoDialog = document.getElementById('charSelectInfoDialog');
+const charSelectInfoDialogClose = document.getElementById('charSelectInfoDialogClose');
 
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsDialog = document.getElementById('settingsDialog');
@@ -344,6 +353,13 @@ function initDialogs() {
     credentialsDialogClose.addEventListener('click', () => credentialsDialog.close());
     credentialsDialog.addEventListener('click', (e) => {
         if (e.target === credentialsDialog) credentialsDialog.close();
+    });
+
+    // Character Select Info Dialog
+    charSelectInfoBtn.addEventListener('click', () => charSelectInfoDialog.showModal());
+    charSelectInfoDialogClose.addEventListener('click', () => charSelectInfoDialog.close());
+    charSelectInfoDialog.addEventListener('click', (e) => {
+        if (e.target === charSelectInfoDialog) charSelectInfoDialog.close();
     });
 
     // OTP Tutorial Dialog
@@ -673,6 +689,12 @@ async function loadConfig() {
         autoInputOtp.checked = config.auto_input_otp !== false;
         autoPressEnter.checked = config.auto_press_enter !== false;
         autoClickPlay.checked = config.auto_click_play !== false;
+        autoSelectCharacter.checked = config.auto_select_character === true;
+        charSelectKeyInput.textContent = config.character_select_key || 'Numpad0';
+        currentCharSelectVk = config.character_select_key_vk ?? 96;
+        charSelectDelay.value = config.character_select_delay ?? 20;
+        charSelectPressCount.value = config.character_select_press_count ?? 6;
+        charSelectInterval.value = config.character_select_interval ?? 5;
 
         refreshAccountList();
         loadSelectedAccount();
@@ -694,7 +716,13 @@ async function saveConfig() {
             auto_input_credentials: autoInputCredentials.checked,
             auto_input_otp: autoInputOtp.checked,
             auto_press_enter: autoPressEnter.checked,
-            auto_click_play: autoClickPlay.checked
+            auto_click_play: autoClickPlay.checked,
+            auto_select_character: autoSelectCharacter.checked,
+            character_select_key: charSelectKeyInput.textContent,
+            character_select_key_vk: currentCharSelectVk,
+            character_select_delay: parseInt(charSelectDelay.value) || 20,
+            character_select_press_count: parseInt(charSelectPressCount.value) || 6,
+            character_select_interval: parseInt(charSelectInterval.value) || 5
         });
     } catch (error) {
         console.error('Failed to save config:', error);
@@ -891,6 +919,10 @@ autoInputCredentials.addEventListener('change', saveConfig);
 autoInputOtp.addEventListener('change', saveConfig);
 autoPressEnter.addEventListener('change', saveConfig);
 autoClickPlay.addEventListener('change', saveConfig);
+autoSelectCharacter.addEventListener('change', saveConfig);
+charSelectDelay.addEventListener('change', saveConfig);
+charSelectPressCount.addEventListener('change', saveConfig);
+charSelectInterval.addEventListener('change', saveConfig);
 
 // 帳號密碼提示按鈕
 credentialsInfoBtn.addEventListener('click', () => {
@@ -1043,6 +1075,17 @@ tabOther.addEventListener('click', () => {
 
 // ========== 重置視窗位置快捷鍵 ==========
 
+// ========== 自動進入角色按鍵錄製 ==========
+
+let currentCharSelectVk = 96; // VK_NUMPAD0
+let isRecordingCharKey = false;
+
+charSelectKeyInput.addEventListener('click', () => {
+    isRecordingCharKey = true;
+    charSelectKeyInput.textContent = '按下按鍵...';
+    charSelectKeyInput.classList.add('border-yellow-400');
+});
+
 let currentHotkey = 'F5';
 let isRecordingHotkey = false;
 
@@ -1086,6 +1129,41 @@ hotkeyInput.addEventListener('click', () => {
 
 // 監聽按鍵
 document.addEventListener('keydown', async (e) => {
+    // 錄製角色選擇按鍵模式
+    if (isRecordingCharKey) {
+        e.preventDefault();
+        const keyName = e.code || e.key;
+        charSelectKeyInput.textContent = keyName;
+        charSelectKeyInput.classList.remove('border-yellow-400');
+        isRecordingCharKey = false;
+
+        // 映射 JS code 到 Windows VK code
+        const vkMap = {
+            'Numpad0': 96, 'Numpad1': 97, 'Numpad2': 98, 'Numpad3': 99,
+            'Numpad4': 100, 'Numpad5': 101, 'Numpad6': 102, 'Numpad7': 103,
+            'Numpad8': 104, 'Numpad9': 105,
+            'NumpadEnter': 0x0D, 'NumpadAdd': 0x6B, 'NumpadSubtract': 0x6D,
+            'NumpadMultiply': 0x6A, 'NumpadDivide': 0x6F, 'NumpadDecimal': 0x6E,
+            'Enter': 0x0D, 'Space': 0x20, 'Escape': 0x1B,
+            'ArrowUp': 0x26, 'ArrowDown': 0x28, 'ArrowLeft': 0x25, 'ArrowRight': 0x27,
+            'KeyA': 0x41, 'KeyB': 0x42, 'KeyC': 0x43, 'KeyD': 0x44, 'KeyE': 0x45,
+            'KeyF': 0x46, 'KeyG': 0x47, 'KeyH': 0x48, 'KeyI': 0x49, 'KeyJ': 0x4A,
+            'KeyK': 0x4B, 'KeyL': 0x4C, 'KeyM': 0x4D, 'KeyN': 0x4E, 'KeyO': 0x4F,
+            'KeyP': 0x50, 'KeyQ': 0x51, 'KeyR': 0x52, 'KeyS': 0x53, 'KeyT': 0x54,
+            'KeyU': 0x55, 'KeyV': 0x56, 'KeyW': 0x57, 'KeyX': 0x58, 'KeyY': 0x59,
+            'KeyZ': 0x5A,
+            'Digit0': 0x30, 'Digit1': 0x31, 'Digit2': 0x32, 'Digit3': 0x33,
+            'Digit4': 0x34, 'Digit5': 0x35, 'Digit6': 0x36, 'Digit7': 0x37,
+            'Digit8': 0x38, 'Digit9': 0x39,
+            'F1': 0x70, 'F2': 0x71, 'F3': 0x72, 'F4': 0x73, 'F5': 0x74,
+            'F6': 0x75, 'F7': 0x76, 'F8': 0x77, 'F9': 0x78, 'F10': 0x79,
+            'F11': 0x7A, 'F12': 0x7B,
+        };
+        currentCharSelectVk = vkMap[keyName] || e.keyCode || 96;
+        await saveConfig();
+        return;
+    }
+
     // 錄製快捷鍵模式
     if (isRecordingHotkey) {
         e.preventDefault();

@@ -3,7 +3,7 @@ FF14 Login Manager
 使用 pywebview 介面，搭配 UI Automation API 操作 FF14 Launcher
 """
 
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 VERSION_CHECK_URL = "https://raw.githubusercontent.com/yen58767/FF14_TW_LoginManager/main/version.json"
 
 import sys
@@ -204,6 +204,12 @@ class ConfigManager:
             "auto_input_otp": True,
             "auto_press_enter": True,
             "auto_click_play": True,
+            "auto_select_character": False,
+            "character_select_key": "Numpad0",
+            "character_select_key_vk": 96,  # VK_NUMPAD0
+            "character_select_delay": 20,
+            "character_select_press_count": 6,
+            "character_select_interval": 5,
             "window_x": None,
             "window_y": None,
             "encryption_enabled": True  # 標記是否啟用加密
@@ -547,6 +553,85 @@ class LauncherAutomation:
             except Exception as e:
                 return False, f"點擊 PLAY 失敗: {str(e)}"
 
+    def select_character(self, key_vk: int, delay: int, press_count: int, interval: int, status_callback) -> tuple[bool, str]:
+        """等待遊戲啟動後模擬按鍵進入角色"""
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        KEYEVENTF_KEYUP = 0x0002
+
+        # 1. 等待 ffxiv_dx11.exe 出現（最長 120 秒）
+        status_callback("等待遊戲啟動...")
+        start_time = time.time()
+        game_found = False
+
+        while time.time() - start_time < 120:
+            if self._stop_flag:
+                return False, "已取消"
+
+            # 偵測遊戲進程
+            try:
+                PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+                EnumProcesses = ctypes.windll.psapi.EnumProcesses
+                GetProcessImageFileNameW = ctypes.windll.psapi.GetProcessImageFileNameW
+                OpenProcess = ctypes.windll.kernel32.OpenProcess
+                CloseHandle = ctypes.windll.kernel32.CloseHandle
+
+                process_ids = (ctypes.c_ulong * 2048)()
+                bytes_returned = ctypes.c_ulong()
+                EnumProcesses(process_ids, ctypes.sizeof(process_ids), ctypes.byref(bytes_returned))
+                num_processes = bytes_returned.value // ctypes.sizeof(ctypes.c_ulong)
+
+                for i in range(num_processes):
+                    pid = process_ids[i]
+                    if pid == 0:
+                        continue
+                    handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+                    if handle:
+                        try:
+                            image_name = ctypes.create_unicode_buffer(512)
+                            if GetProcessImageFileNameW(handle, image_name, 512):
+                                exe_name = image_name.value.split("\\")[-1].lower()
+                                if exe_name in ["ffxiv_dx11.exe", "ffxiv.exe"]:
+                                    game_found = True
+                                    break
+                        finally:
+                            CloseHandle(handle)
+
+                if game_found:
+                    break
+            except Exception:
+                pass
+
+            time.sleep(1)
+
+        if not game_found:
+            return False, "等待遊戲啟動逾時"
+
+        # 2. 等待初始載入
+        if delay > 0:
+            status_callback("遊戲已啟動，等待載入...")
+            for i in range(delay):
+                if self._stop_flag:
+                    return False, "已取消"
+                remaining = delay - i
+                status_callback(f"等待遊戲載入... ({remaining}s)")
+                time.sleep(1)
+
+        # 3. 按 key_vk，可設定次數與間隔
+        for i in range(press_count):
+            if self._stop_flag:
+                return False, "已取消"
+
+            status_callback(f"模擬按鍵 ({i + 1}/{press_count})...")
+            user32.keybd_event(key_vk, 0, 0, 0)
+            user32.keybd_event(key_vk, 0, KEYEVENTF_KEYUP, 0)
+
+            if i < press_count - 1:  # 最後一次不需要等待
+                time.sleep(interval)
+
+        return True, "已完成角色選擇"
+
     def run_automation(self, secret_key: str, email: str, password: str, status_callback) -> tuple[bool, str]:
         """執行完整自動化流程"""
         self.running = True
@@ -625,6 +710,17 @@ class LauncherAutomation:
                 status_callback(msg)
 
                 success, msg = self.click_play_button(play_button)
+                if not success:
+                    return False, msg
+                status_callback(msg)
+
+            # 步驟 6: 自動進入角色
+            if self.config.get("auto_select_character"):
+                key_vk = self.config.get("character_select_key_vk", 96)
+                delay = self.config.get("character_select_delay", 20)
+                press_count = self.config.get("character_select_press_count", 6)
+                interval = self.config.get("character_select_interval", 5)
+                success, msg = self.select_character(key_vk, delay, press_count, interval, status_callback)
                 if not success:
                     return False, msg
                 status_callback(msg)
