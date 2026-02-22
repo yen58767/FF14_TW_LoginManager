@@ -187,8 +187,10 @@ async function checkForUpdates(showNoUpdateMsg = false) {
 
             document.getElementById('updateDialog').showModal();
         } else if (showNoUpdateMsg) {
-            // 手動檢查時，如果沒有更新，顯示提示
-            updateStatus('目前已是最新版本');
+            if (result.error) {
+                alert('檢查更新失敗:\n' + result.error);
+            }
+            updateStatus(result.error ? '檢查更新失敗' : '目前已是最新版本');
         }
     } catch (error) {
         console.error('檢查更新失敗:', error);

@@ -1065,9 +1065,17 @@ class SystemTrayManager:
         sep_l = min(bg_l + 4, 90)
         sep_color = self._hsl_to_hex(t['card_h'], t['card_s'], sep_l)
 
+        # 同 CSS: brightness > 35 切換深色文字
+        if brightness > 35:
+            fg = '#1a1a2e'
+            hover_fg = '#000000'
+        else:
+            fg = t['text']
+            hover_fg = '#FFFFFF'
+
         return {
-            'bg': bg, 'fg': t['text'], 'hover_bg': hover_bg,
-            'hover_fg': '#FFFFFF', 'sep': sep_color, 'primary': t['primary'],
+            'bg': bg, 'fg': fg, 'hover_bg': hover_bg,
+            'hover_fg': hover_fg, 'sep': sep_color, 'primary': t['primary'],
         }
 
     def _show_custom_menu(self):
@@ -1611,9 +1619,10 @@ def on_closing():
 def check_for_updates():
     """檢查是否有新版本"""
     try:
+        cache_bust = f"?t={int(time.time())}"
         req = urllib.request.Request(
-            VERSION_CHECK_URL,
-            headers={'User-Agent': 'FF14LoginManager'}
+            VERSION_CHECK_URL + cache_bust,
+            headers={'User-Agent': 'FF14LoginManager', 'Cache-Control': 'no-cache'}
         )
         with urllib.request.urlopen(req, timeout=5) as response:
             data = json.loads(response.read().decode('utf-8'))
@@ -1621,8 +1630,11 @@ def check_for_updates():
             download_url = data.get("download_url", "")
             changelog = data.get("changelog", "")
 
-            # 比較版本
-            if remote_version > VERSION:
+            # 比較版本（用 tuple 比較避免 "1.0.10" < "1.0.9" 的問題）
+            def ver_tuple(v):
+                return tuple(int(x) for x in v.split('.'))
+
+            if ver_tuple(remote_version) > ver_tuple(VERSION):
                 return {
                     "has_update": True,
                     "current_version": VERSION,
@@ -1631,7 +1643,7 @@ def check_for_updates():
                     "changelog": changelog
                 }
     except Exception as e:
-        print(f"檢查更新失敗: {e}")
+        return {"has_update": False, "current_version": VERSION, "error": str(e)}
 
     return {"has_update": False, "current_version": VERSION}
 
