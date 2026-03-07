@@ -2,6 +2,7 @@
 const launcherPathInput = document.getElementById('launcherPath');
 const browseBtn = document.getElementById('browseBtn');
 const launcherMonitor = document.getElementById('launcherMonitor');
+let monitorsList = [];  // 快取螢幕列表，用於儲存時查 device name
 const accountSelect = document.getElementById('accountSelect');
 const addAccountBtn = document.getElementById('addAccountBtn');
 const deleteAccountBtn = document.getElementById('deleteAccountBtn');
@@ -685,9 +686,9 @@ async function loadConfig() {
 
         // 載入螢幕列表
         try {
-            const monitors = await window.pywebview.api.get_monitors();
+            monitorsList = await window.pywebview.api.get_monitors();
             const monitorItems = [{ value: -1, label: '不指定' }];
-            monitors.forEach((m, i) => {
+            monitorsList.forEach((m, i) => {
                 monitorItems.push({
                     value: i,
                     label: `螢幕 ${i + 1}${m.name ? ' ' + m.name : ''} (${m.width}x${m.height}${m.primary ? ', 主螢幕' : ''})`,
@@ -734,6 +735,7 @@ async function saveConfig() {
         await window.pywebview.api.save_config({
             launcher_path: launcherPathInput.value,
             launcher_monitor: parseInt(launcherMonitor.dataset.value),
+            launcher_monitor_device: (monitorsList[parseInt(launcherMonitor.dataset.value)] || {}).device || '',
             accounts: accounts,
             selected_account: selectedAccountIndex,
             theme: currentTheme,

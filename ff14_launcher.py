@@ -21,9 +21,18 @@ import traceback
 LOG_DIR = Path(os.environ.get("LOCALAPPDATA", "")) / "FF14LoginManager"
 LOG_FILE = LOG_DIR / "error.log"
 
-# 設定 Windows AppUserModelID，讓程式可以正確釘選到工作列
+# 設定 Per-Monitor DPI Awareness，確保多螢幕座標正確
 import ctypes
 from ctypes import wintypes
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+except Exception:
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+# 設定 Windows AppUserModelID，讓程式可以正確釘選到工作列
 try:
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FF14LoginManager.App")
 except Exception:
@@ -45,15 +54,17 @@ def _try_acquire_single_instance():
     global _instance_mutex
     ERROR_ALREADY_EXISTS = 183
 
-    _instance_mutex = ctypes.windll.kernel32.CreateMutexW(None, False, MUTEX_NAME)
-    if ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+    # 必須用 use_last_error=True 的 WinDLL，否則 ctypes 內部會覆蓋 last error
+    _kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    _instance_mutex = _kernel32.CreateMutexW(None, False, MUTEX_NAME)
+    if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
         # 已有實例，發信號讓它顯示視窗
-        evt = ctypes.windll.kernel32.OpenEventW(0x0002, False, EVENT_NAME)  # EVENT_MODIFY_STATE
+        evt = _kernel32.OpenEventW(0x0002, False, EVENT_NAME)  # EVENT_MODIFY_STATE
         if evt:
-            ctypes.windll.kernel32.SetEvent(evt)
-            ctypes.windll.kernel32.CloseHandle(evt)
+            _kernel32.SetEvent(evt)
+            _kernel32.CloseHandle(evt)
         if _instance_mutex:
-            ctypes.windll.kernel32.CloseHandle(_instance_mutex)
+            _kernel32.CloseHandle(_instance_mutex)
             _instance_mutex = None
         return False
     return True
@@ -256,6 +267,7 @@ class ConfigManager:
             "character_select_press_count": 6,
             "character_select_interval": 5,
             "launcher_monitor": -1,
+            "launcher_monitor_device": "",
             "close_action": "minimize_to_tray",  # minimize_to_tray | quit
             "minimize_action": "taskbar",          # taskbar | tray
             "minimize_after_launch": False,
@@ -474,6 +486,7 @@ class LauncherAutomation:
 
             monitors.append({
                 'index': len(monitors),
+                'device': info.szDevice.strip(),
                 'x': info.rcWork.left,
                 'y': info.rcWork.top,
                 'width': info.rcWork.right - info.rcWork.left,
@@ -489,13 +502,23 @@ class LauncherAutomation:
         return monitors
 
     @staticmethod
-    def move_window_to_monitor(launcher_element, monitor_index: int):
-        """將 Launcher 視窗移到指定螢幕中央"""
+    def move_window_to_monitor(launcher_element, monitor_index: int, monitor_device: str = ""):
+        """將 Launcher 視窗移到指定螢幕中央（優先用 device name 比對，fallback 用 index）"""
         monitors = LauncherAutomation.get_monitors()
-        if monitor_index < 0 or monitor_index >= len(monitors):
-            return
 
-        m = monitors[monitor_index]
+        # 優先用 device name 找到正確螢幕
+        m = None
+        if monitor_device:
+            for mon in monitors:
+                if mon['device'] == monitor_device:
+                    m = mon
+                    break
+
+        # fallback: 用 index
+        if m is None:
+            if monitor_index < 0 or monitor_index >= len(monitors):
+                return
+            m = monitors[monitor_index]
         try:
             hwnd = launcher_element.CurrentNativeWindowHandle
             if not hwnd:
@@ -872,9 +895,10 @@ class LauncherAutomation:
 
             # 移動到指定螢幕
             monitor_index = self.config.get("launcher_monitor", -1)
-            if monitor_index >= 0:
+            monitor_device = self.config.get("launcher_monitor_device", "")
+            if monitor_index >= 0 or monitor_device:
                 status_callback("正在移動視窗到指定螢幕...")
-                self.move_window_to_monitor(launcher, monitor_index)
+                self.move_window_to_monitor(launcher, monitor_index, monitor_device)
                 time.sleep(0.5)
 
             # 步驟 2.5: 輸入帳號密碼
@@ -1201,14 +1225,25 @@ class SystemTrayManager:
         x = pt.x - w // 2
         y = pt.y - h - 4
 
-        # 確保不超出螢幕
-        screen_w = ctypes.windll.user32.GetSystemMetrics(0)
-        screen_h = ctypes.windll.user32.GetSystemMetrics(1)
-        if x < 0:
-            x = 0
-        if x + w > screen_w:
-            x = screen_w - w
-        if y < 0:
+        # 確保不超出游標所在螢幕的工作區域
+        MONITOR_DEFAULTTONEAREST = 2
+        hmon = ctypes.windll.user32.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST)
+        from ctypes import sizeof as ct_sizeof
+        class _MONITORINFO(ctypes.Structure):
+            _fields_ = [('cbSize', wintypes.DWORD),
+                        ('rcMonitor', wintypes.RECT),
+                        ('rcWork', wintypes.RECT),
+                        ('dwFlags', wintypes.DWORD)]
+        mi = _MONITORINFO()
+        mi.cbSize = ct_sizeof(_MONITORINFO)
+        ctypes.windll.user32.GetMonitorInfoW(hmon, ctypes.byref(mi))
+        mon_left, mon_top = mi.rcWork.left, mi.rcWork.top
+        mon_right, mon_bottom = mi.rcWork.right, mi.rcWork.bottom
+        if x < mon_left:
+            x = mon_left
+        if x + w > mon_right:
+            x = mon_right - w
+        if y < mon_top:
             y = pt.y + 10
 
         popup.geometry(f'+{x}+{y}')
@@ -1324,6 +1359,16 @@ class SystemTrayManager:
         if hwnd and self._placement:
             self._placement.showCmd = 1  # SW_SHOWNORMAL
             user32.SetWindowPlacement(hwnd, ctypes.byref(self._placement))
+            HWND_TOPMOST = -1
+            HWND_NOTOPMOST = -2
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+            user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+            user32.SetForegroundWindow(hwnd)
+        elif hwnd:
+            # 沒有 placement 但 hwnd 存在：用 ShowWindow 顯示並置頂
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
             HWND_TOPMOST = -1
             HWND_NOTOPMOST = -2
             SWP_NOMOVE = 0x0002
@@ -1552,17 +1597,37 @@ class Api:
         """取得當前版本"""
         return VERSION
     def reset_window_position(self):
-        """重置視窗位置到螢幕中央"""
+        """重置視窗位置到視窗所在螢幕的中央"""
         try:
-            # 取得螢幕尺寸
-            screen_width = ctypes.windll.user32.GetSystemMetrics(0)
-            screen_height = ctypes.windll.user32.GetSystemMetrics(1)
+            user32 = ctypes.windll.user32
+            hwnd = user32.FindWindowW(None, "FF14 Login Manager")
 
-            # 計算視窗中央位置
+            # 取得視窗所在螢幕的工作區域
+            MONITOR_DEFAULTTONEAREST = 2
+            hmon = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) if hwnd else None
+
+            if hmon:
+                class _MONITORINFO(ctypes.Structure):
+                    _fields_ = [('cbSize', wintypes.DWORD),
+                                ('rcMonitor', wintypes.RECT),
+                                ('rcWork', wintypes.RECT),
+                                ('dwFlags', wintypes.DWORD)]
+                mi = _MONITORINFO()
+                mi.cbSize = ctypes.sizeof(_MONITORINFO)
+                user32.GetMonitorInfoW(hmon, ctypes.byref(mi))
+                mon_x, mon_y = mi.rcWork.left, mi.rcWork.top
+                screen_width = mi.rcWork.right - mi.rcWork.left
+                screen_height = mi.rcWork.bottom - mi.rcWork.top
+            else:
+                mon_x, mon_y = 0, 0
+                screen_width = user32.GetSystemMetrics(0)
+                screen_height = user32.GetSystemMetrics(1)
+
+            # 計算螢幕中央位置
             window_width = 680
             window_height = 580
-            x = (screen_width - window_width) // 2
-            y = (screen_height - window_height) // 2
+            x = mon_x + (screen_width - window_width) // 2
+            y = mon_y + (screen_height - window_height) // 2
 
             # 移動視窗
             window.move(x, y)
@@ -1766,10 +1831,20 @@ def main():
         "js_api": api
     }
 
-    # 如果有儲存的位置，套用之
+    # 如果有儲存的位置，驗證座標仍在可見螢幕範圍內才套用
     if saved_x is not None and saved_y is not None:
-        window_params["x"] = saved_x
-        window_params["y"] = saved_y
+        SM_XVIRTUALSCREEN = 76
+        SM_YVIRTUALSCREEN = 77
+        SM_CXVIRTUALSCREEN = 78
+        SM_CYVIRTUALSCREEN = 79
+        vx = ctypes.windll.user32.GetSystemMetrics(SM_XVIRTUALSCREEN)
+        vy = ctypes.windll.user32.GetSystemMetrics(SM_YVIRTUALSCREEN)
+        vw = ctypes.windll.user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
+        vh = ctypes.windll.user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
+        # 只要視窗左上角在虛擬螢幕範圍內（留 50px 容差）就套用
+        if vx - 50 <= saved_x <= vx + vw - 50 and vy - 50 <= saved_y <= vy + vh - 50:
+            window_params["x"] = saved_x
+            window_params["y"] = saved_y
 
     window = webview.create_window(**window_params)
     tray_manager.set_window(window)
