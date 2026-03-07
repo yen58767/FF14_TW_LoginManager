@@ -34,6 +34,51 @@ import pyotp
 import pystray
 from PIL import Image as PILImage
 
+# ============ 單一實例機制 ============
+MUTEX_NAME = "Global\\FF14LoginManager_SingleInstance"
+EVENT_NAME = "Global\\FF14LoginManager_ShowWindow"
+
+_instance_mutex = None  # 持有 mutex 參考，防止 GC 釋放
+
+def _try_acquire_single_instance():
+    """嘗試取得單一實例 mutex。若已有實例在執行，發送喚醒信號並回傳 False。"""
+    global _instance_mutex
+    ERROR_ALREADY_EXISTS = 183
+
+    _instance_mutex = ctypes.windll.kernel32.CreateMutexW(None, False, MUTEX_NAME)
+    if ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+        # 已有實例，發信號讓它顯示視窗
+        evt = ctypes.windll.kernel32.OpenEventW(0x0002, False, EVENT_NAME)  # EVENT_MODIFY_STATE
+        if evt:
+            ctypes.windll.kernel32.SetEvent(evt)
+            ctypes.windll.kernel32.CloseHandle(evt)
+        if _instance_mutex:
+            ctypes.windll.kernel32.CloseHandle(_instance_mutex)
+            _instance_mutex = None
+        return False
+    return True
+
+def _start_show_window_listener():
+    """背景執行緒：監聽喚醒事件，收到後顯示主視窗。"""
+    evt = ctypes.windll.kernel32.CreateEventW(None, False, False, EVENT_NAME)
+    if not evt:
+        return
+
+    def listener():
+        WAIT_OBJECT_0 = 0
+        INFINITE = 0xFFFFFFFF
+        while True:
+            result = ctypes.windll.kernel32.WaitForSingleObject(evt, INFINITE)
+            if result == WAIT_OBJECT_0:
+                if tray_manager:
+                    try:
+                        tray_manager._show_window()
+                    except Exception:
+                        pass
+
+    t = threading.Thread(target=listener, daemon=True)
+    t.start()
+
 # Windows UI Automation
 import comtypes.client
 from comtypes import COMError
@@ -1252,9 +1297,15 @@ class SystemTrayManager:
                         secret_key, email, password,
                         lambda msg: None
                     )
+                    # 自動化完成後確保主視窗不會跑出來
+                    if self._window:
+                        self._window.hide()
 
                 thread = threading.Thread(target=run, daemon=True)
                 thread.start()
+                # 啟動後立刻隱藏，避免主視窗被帶出來
+                if self._window:
+                    self._window.hide()
 
     def save_placement(self):
         """用 GetWindowPlacement 儲存視窗的正常位置（即使已最小化也能取得）"""
@@ -1685,6 +1736,10 @@ def set_window_icon(icon_path):
 def main():
     global window, tray_manager
 
+    # 單一實例檢查：若已有實例在執行，喚醒它並退出
+    if not _try_acquire_single_instance():
+        return
+
     # 取得腳本所在目錄
     script_dir = os.path.dirname(os.path.abspath(__file__))
     web_dir = os.path.join(script_dir, "web")
@@ -1735,6 +1790,7 @@ def main():
         time.sleep(0.1)  # 等待視窗完全顯示
         set_window_icon(icon_path)
         tray_manager.start()
+        _start_show_window_listener()
 
     window.events.shown += on_shown
 
